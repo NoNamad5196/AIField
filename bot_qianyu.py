@@ -42,8 +42,17 @@ class QianyuBot(discord.Client):
         if chunk:
             await channel.send(chunk)
 
+    async def _safe_reply(self, original_msg, content: str):
+        """원본 메시지에 답글. 2000자 초과 시 첫 청크만 reply, 나머지는 채널 전송."""
+        if len(content) <= 2000:
+            await original_msg.reply(content)
+            return
+        await original_msg.reply(content[:2000])
+        await asyncio.sleep(0.5)
+        await self._safe_send(original_msg.channel, content[2000:])
+
     async def post_rumor(self, item: NewsItem) -> int:
-        """루머/떡밥을 #aifield-live에 올리고 스레드 생성 후 thread_id 반환."""
+        """루머/떡밥을 #aifield-live에 올리고 message_id 반환."""
         content = await generate(
             QIANYU_SYSTEM_PROMPT,
             rumor_user_prompt(item),
@@ -55,22 +64,18 @@ class QianyuBot(discord.Client):
         if len(content) > 2000:
             await asyncio.sleep(0.5)
             await self._safe_send(channel, content[2000:])
-        await asyncio.sleep(0.5)
-        thread = await message.create_thread(
-            name=f"검증 | {item.title[:50]}",
-            auto_archive_duration=1440,
-        )
-        return thread.id
+        return message.id
 
-    async def post_community_reaction(self, thread_id: int, item: NewsItem):
-        """속보 스레드에 커뮤니티 반응 달기."""
+    async def post_community_reaction(self, message_id: int, item: NewsItem):
+        """펠리카 속보에 답글로 커뮤니티 반응 달기."""
         content = await generate(
             QIANYU_SYSTEM_PROMPT,
             community_reaction_user_prompt(item),
             fallback=_format_community_reaction(item),
         )
-        thread = await self._get_channel(thread_id)
-        await self._safe_send(thread, content)
+        channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
+        original = await channel.fetch_message(message_id)
+        await self._safe_reply(original, content)
 
 
 def _format_rumor(item: NewsItem) -> str:

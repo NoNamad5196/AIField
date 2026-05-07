@@ -100,8 +100,17 @@ class PerlicaBot(discord.Client):
             await self._scheduler.scan_once()
             await interaction.followup.send("✅ 수집 완료!", ephemeral=True)
 
+    async def _safe_reply(self, original_msg, content: str):
+        """원본 메시지에 답글. 2000자 초과 시 첫 청크만 reply, 나머지는 채널 전송."""
+        if len(content) <= 2000:
+            await original_msg.reply(content)
+            return
+        await original_msg.reply(content[:2000])
+        await asyncio.sleep(0.5)
+        await self._safe_send(original_msg.channel, content[2000:])
+
     async def post_breaking_news(self, item: NewsItem) -> int:
-        """속보를 #aifield-live에 올리고 스레드 생성 후 thread_id 반환."""
+        """속보를 #aifield-live에 올리고 message_id 반환."""
         content = await generate(
             PERLICA_SYSTEM_PROMPT,
             breaking_news_user_prompt(item),
@@ -113,22 +122,18 @@ class PerlicaBot(discord.Client):
         if len(content) > 2000:
             await asyncio.sleep(0.5)
             await self._safe_send(channel, content[2000:])
-        await asyncio.sleep(0.5)
-        thread = await message.create_thread(
-            name=f"속보 | {item.title[:50]}",
-            auto_archive_duration=1440,
-        )
-        return thread.id
+        return message.id
 
-    async def post_verification(self, thread_id: int, item: NewsItem):
-        """루머 스레드에 검증 결과 달기."""
+    async def post_verification(self, message_id: int, item: NewsItem):
+        """진천우 루머에 답글로 검증 결과 달기."""
         content = await generate(
             PERLICA_SYSTEM_PROMPT,
             verification_user_prompt(item),
             fallback=_format_verification(item),
         )
-        thread = await self._get_channel(thread_id)
-        await self._safe_send(thread, content)
+        channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
+        original = await channel.fetch_message(message_id)
+        await self._safe_reply(original, content)
 
     async def post_briefing(self, content: str):
         """#aifield-briefing에 브리핑 게시."""
