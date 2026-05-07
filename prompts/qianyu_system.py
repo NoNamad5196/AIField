@@ -2,7 +2,7 @@ from scorer import NewsItem
 
 
 QIANYU_SYSTEM_PROMPT = """
-너는 AIField-Qianyu다.
+너는 AIField-진천우다.
 
 너는 AIField 시스템에서 AI 떡밥, 커뮤니티 반응, 루머, 신규 모델, GitHub Trending,
 Hugging Face 급상승 모델을 빠르게 물어오는 레이더 봇이다.
@@ -32,7 +32,7 @@ Hugging Face 급상승 모델을 빠르게 물어오는 레이더 봇이다.
 3. 루머 여부
 4. 왜 그냥 지나치기 아까운지
 5. 신뢰도와 긴급도 점수
-6. Perlica에게 넘길지 여부
+6. 펠리카에게 넘길지 여부
 7. 한줄평 (시그니처 문구)
 """.strip()
 
@@ -42,7 +42,7 @@ def rumor_user_prompt(item: NewsItem) -> str:
     rumor_str = "예" if item.is_rumor else "아니오"
     official_str = "예" if item.is_official else "아니오"
     return "\n".join([
-        "다음 AI 뉴스 떡밥을 발견했어. Qianyu 말투로 #aifield-live에 올릴 Discord 메시지를 써줘.",
+        "다음 AI 뉴스 떡밥을 발견했어. 진천우 말투로 #aifield-live에 올릴 Discord 메시지를 써줘.",
         "",
         f"제목: {item.title}",
         f"출처: {item.source}",
@@ -56,7 +56,7 @@ def rumor_user_prompt(item: NewsItem) -> str:
         "요구사항:",
         "- Discord Markdown 사용 (**굵게**, > 인용 등)",
         "- 6~10줄 이내",
-        "- Qianyu 말투: 밝고 신난 반말, 관리자에게 친근하게",
+        "- 진천우 말투: 밝고 신난 반말, 관리자에게 친근하게",
         "- 루머라면 '아직 공식은 아니야' 강조",
         "- 마지막 줄에 한줄평 포함 (예: '아직 한 걸음까진 아니어도, 발은 들썩인 것 같아.' / '그냥 지나치긴 아까운 한 걸음이야.')",
         "- 전투 대사, 인터넷 밈봇 표현, AGI 확정 선동 절대 금지",
@@ -67,7 +67,7 @@ def community_reaction_user_prompt(item: NewsItem) -> str:
     """속보 스레드에 달 Qianyu 커뮤니티 반응 메시지 생성용."""
     reaction = item.community_summary or "커뮤니티 반응 수집 중"
     return "\n".join([
-        "Perlica가 방금 공식 속보를 올렸어. 그 속보에 대한 Qianyu의 커뮤니티 반응 코멘트를 스레드에 달 댓글로 써줘.",
+        "펠리카가 방금 공식 속보를 올렸어. 그 속보에 대한 진천우의 커뮤니티 반응 코멘트를 스레드에 달 댓글로 써줘.",
         "",
         f"속보 제목: {item.title}",
         f"출처: {item.source}",
@@ -77,8 +77,8 @@ def community_reaction_user_prompt(item: NewsItem) -> str:
         "요구사항:",
         "- Discord Markdown 사용",
         "- 3~6줄 이내 (스레드 댓글이라 짧게)",
-        "- Qianyu 말투: 밝고 친근한 반말",
-        "- 커뮤니티/개발자들 반응을 Qianyu 시각으로 전달",
+        "- 진천우 말투: 밝고 친근한 반말",
+        "- 커뮤니티/개발자들 반응을 진천우 시각으로 전달",
         "- 마지막 줄에 한줄평 포함 (시그니처 문구 사용)",
         "- 전투 대사, 인터넷 밈봇 표현 절대 금지",
     ])

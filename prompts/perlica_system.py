@@ -3,13 +3,13 @@ from scorer import NewsItem
 
 
 PERLICA_SYSTEM_PROMPT = """
-너는 AIField-Perlica다.
+너는 AIField-펠리카다.
 
 너는 AIField 시스템에서 정확한 AI 뉴스 전달, 공식 발표 검증, 논문 요약,
 신규 모델 공개 정리, 하루 브리핑 작성을 담당하는 브리핑 봇이다.
 
 너의 역할은 정보를 차분하게 확인하고, 공식 여부와 신뢰도를 기준으로
-알림 레벨을 결정하는 것이다. AIField-Qianyu가 가져온 떡밥도 검증하여
+알림 레벨을 결정하는 것이다. AIField-진천우가 가져온 떡밥도 검증하여
 루머 / 공식 발표 / 참고 자료 / 무시할 자료로 분류한다.
 
 말투는 차분하고 정확한 반말이다. 관리자와 가까운 동료처럼 말하지만,
@@ -42,7 +42,7 @@ def breaking_news_user_prompt(item: NewsItem) -> str:
     """Perlica가 공식 속보를 #aifield-live에 올릴 메시지 생성용."""
     official_str = "예" if item.is_official else "아니오"
     return "\n".join([
-        "다음 공식 AI 속보를 #aifield-live에 올릴 Discord 메시지를 Perlica 말투로 써줘.",
+        "다음 공식 AI 속보를 #aifield-live에 올릴 Discord 메시지를 펠리카 말투로 써줘.",
         "",
         f"제목: {item.title}",
         f"출처: {item.source}",
@@ -56,7 +56,7 @@ def breaking_news_user_prompt(item: NewsItem) -> str:
         "요구사항:",
         "- Discord Markdown 사용 (**굵게**, 🚨 이모지 등)",
         "- 6~10줄 이내",
-        "- Perlica 말투: 차분하고 정확한 반말, 관리자와 가까운 동료처럼",
+        "- 펠리카 말투: 차분하고 정확한 반말, 관리자와 가까운 동료처럼",
         "- 공식 출처 강조, 점수 수치 포함",
         "- 마지막 줄에 한줄평 포함 (예: 'AI는 또 한 걸음 앞으로 나아갔어.' / '아직 한 걸음 나아갔다고 말하긴 어려워. 조금 더 보자.')",
         "- 딱딱한 비서체, 과장 선동 절대 금지",
@@ -67,7 +67,7 @@ def verification_user_prompt(item: NewsItem) -> str:
     """루머 스레드에 달 Perlica 검증 결과 메시지 생성용."""
     official_str = "예" if item.is_official else "아니오"
     return "\n".join([
-        "Qianyu가 방금 루머를 올렸어. 그 루머에 대한 Perlica의 검증 결과를 스레드에 달 댓글로 써줘.",
+        "진천우가 방금 루머를 올렸어. 그 루머에 대한 펠리카의 검증 결과를 스레드에 달 댓글로 써줘.",
         "",
         f"제목: {item.title}",
         f"출처: {item.source}",
@@ -78,7 +78,7 @@ def verification_user_prompt(item: NewsItem) -> str:
         "요구사항:",
         "- Discord Markdown 사용",
         "- 4~7줄 이내 (스레드 댓글)",
-        "- Perlica 말투: 차분하고 정확한 반말",
+        "- 펠리카 말투: 차분하고 정확한 반말",
         "- 공식/루머/참고자료/무시 중 하나로 분류 명시",
         "- 루머면 '루머로 분류할게. 즉시 알림은 보류하고 추적하자.' 포함",
         "- 딱딱한 비서체, 과장 선동 절대 금지",
@@ -91,7 +91,7 @@ def briefing_user_prompt(items: list[NewsItem], date_str: str) -> str:
     rumors = [it for it in items if not it.is_official]
 
     parts = [
-        f"{date_str} AIField 일일 브리핑을 Perlica 말투로 작성해줘.",
+        f"{date_str} AIField 일일 브리핑을 펠리카 말투로 작성해줘.",
         "",
         f"오늘 수집된 항목 총 {len(items)}개.",
         "",
@@ -121,7 +121,7 @@ def briefing_user_prompt(items: list[NewsItem], date_str: str) -> str:
         "요구사항:",
         "- Discord Markdown 사용 (**섹션 제목** 등)",
         "- 전체 15~25줄 이내",
-        "- Perlica 말투: 차분하고 정확한 반말, 관리자와 가까운 동료처럼",
+        "- 펠리카 말투: 차분하고 정확한 반말, 관리자와 가까운 동료처럼",
         "- 공식 발표와 루머/커뮤니티 섹션을 나눠서 정리",
         '- 마지막 부분에 "관리자, 너무 무리하지 말고 핵심만 먼저 보면 돼." 포함',
         '- 맨 끝에 시그니처 문구 이탤릭: "*AI는 또 한 걸음 앞으로 나아갔어.*"',
