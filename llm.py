@@ -8,7 +8,7 @@ Semaphore(1) + sleep(4.1s)로 무료 티어 15 RPM 제한을 준수한다.
 import asyncio
 import config
 
-_MODEL = "gemini-2.5-flash-preview-05-20"
+_MODEL = "gemini-3.1-flash-lite-preview"
 _semaphore = asyncio.Semaphore(1)
 _REQ_INTERVAL = 4.1  # 60 / 15 RPM = 4초, 여유분 포함
 
