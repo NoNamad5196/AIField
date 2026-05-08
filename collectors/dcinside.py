@@ -67,6 +67,15 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
             href = a_tag.get("href", "")
             url = _POST_BASE + href if href.startswith("/") else href
 
+            # 추천수 파싱 — 念글(추천 5↑) 은 urgency=4(즉시), 나머지는 urgency=3(브리핑)
+            recommend = 0
+            rec_td = row.select_one("td.gall_recommend")
+            if rec_td:
+                try:
+                    recommend = int(rec_td.get_text(strip=True))
+                except ValueError:
+                    pass
+
             items.append(NewsItem(
                 title=title,
                 source="DCInside 싱귤래리티 갤",
@@ -74,6 +83,7 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
                 is_official=False,
                 is_rumor=True,
                 reliability=3,  # 전용 AI 갤러리 — 일반 커뮤니티(2)보다 한 단계 위
+                urgency=4 if recommend >= 5 else 3,  # 念글=즉시, 일반=브리핑
             ))
         except Exception:
             continue

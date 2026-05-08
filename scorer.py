@@ -188,7 +188,7 @@ def _compute_alert_level(item: NewsItem) -> int:
     if item.singularity_impact >= 3 or item.urgency >= 3:
         return 3
 
-    if item.is_rumor or item.reliability <= 2:
+    if item.is_rumor and item.reliability <= 2:
         return 2
 
     return 1
