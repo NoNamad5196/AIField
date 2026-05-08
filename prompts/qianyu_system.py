@@ -66,13 +66,19 @@ def rumor_user_prompt(item: NewsItem) -> str:
 
 def community_reaction_user_prompt(item: NewsItem) -> str:
     """속보 스레드에 달 Qianyu 커뮤니티 반응 메시지 생성용."""
-    reaction = item.community_summary or "커뮤니티 반응 수집 중"
+    if item.community_summary:
+        reaction_section = f"커뮤니티 반응 (수집된 데이터):\n{item.community_summary}"
+    else:
+        reaction_section = (
+            "커뮤니티 반응 데이터 없음. "
+            "속보 제목과 출처를 바탕으로 개발자/AI 커뮤니티에서 나올 법한 반응을 진천우 시각으로 추측해서 써줘."
+        )
     return "\n".join([
         "펠리카가 방금 공식 속보를 올렸어. 그 속보에 대한 진천우의 커뮤니티 반응 코멘트를 스레드에 달 댓글로 써줘.",
         "",
         f"속보 제목: {item.title}",
         f"출처: {item.source}",
-        f"커뮤니티 반응: {reaction}",
+        reaction_section,
         f"특이점 영향도: {item.singularity_impact}/5",
         "",
         "요구사항:",

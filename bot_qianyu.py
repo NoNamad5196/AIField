@@ -97,7 +97,10 @@ def _format_rumor(item: NewsItem) -> str:
 
 
 def _format_community_reaction(item: NewsItem) -> str:
-    reaction = item.community_summary or "커뮤니티 반응 수집 중..."
+    if item.community_summary:
+        reaction = item.community_summary
+    else:
+        reaction = f"'{item.title[:40]}' 관련 커뮤니티 반응은 아직 못 찾았어. 조금 이따 다시 확인해볼게."
     return (
         f"관리자, 커뮤니티 반응 들고 왔어!\n\n"
         f"**{item.title}** — 커뮤 분위기\n"

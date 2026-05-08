@@ -146,4 +146,5 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
         print(f"[dcinside] 요청 실패: {e}")
         return []
 
-    return items
+    # 본문 수집 실패(summary 없음) 항목 제외 — 제목만 있는 글은 Discord 알림 가치 낮음
+    return [it for it in items if it.summary]

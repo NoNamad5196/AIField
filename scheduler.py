@@ -16,6 +16,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 
 from collectors import fetch_all
+from collectors.community_search import fetch_reactions
 from scorer import NewsItem
 from bot_qianyu import QianyuBot
 from bot_perlica import PerlicaBot
@@ -95,8 +96,20 @@ class AIFieldScheduler:
         try:
             if item.is_official:
                 thread_id = await self.perlica.post_breaking_news(item)
-                await asyncio.sleep(1)
-                await self.qianyu.post_community_reaction(thread_id, item)
+                # 커뮤니티 반응 수집 (HN + Reddit, 15초 하드 타임아웃)
+                try:
+                    item.community_summary = await asyncio.wait_for(
+                        fetch_reactions(item), timeout=15.0
+                    )
+                except asyncio.TimeoutError:
+                    print("[scheduler] community_search 타임아웃 — 진천우 답글 생략")
+                    item.community_summary = ""
+                # 반응이 있을 때만 진천우 답글 달기
+                if item.community_summary:
+                    await asyncio.sleep(1)
+                    await self.qianyu.post_community_reaction(thread_id, item)
+                else:
+                    print("[scheduler] 커뮤니티 반응 없음 — 진천우 답글 생략")
             else:
                 thread_id = await self.qianyu.post_rumor(item)
                 await asyncio.sleep(1)
