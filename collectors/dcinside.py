@@ -3,6 +3,7 @@ DC Inside 싱귤래리티 마이너 갤러리 수집기.
 https://gall.dcinside.com/mgallery/board/lists/?id=thesingularity
 """
 
+import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 from scorer import NewsItem
@@ -21,6 +22,29 @@ _HEADERS = {
 _SKIP_TYPES = {"공지", "AD", "설문"}
 # 허용 말머리 — 정보성 글만 수집 (일반 잡담 제외)
 _ALLOWED_SUBJECTS = {"정보", "활용", "자료", "후기", "유출", "외신", "속보", "루머"}
+_CONTENT_LIMIT = 300   # 본문 최대 글자 수
+_FETCH_SEMAPHORE = asyncio.Semaphore(3)  # 동시 본문 요청 최대 3개
+
+
+async def _fetch_post_content(session: aiohttp.ClientSession, url: str) -> str:
+    """개별 포스트 본문 첫 300자를 가져온다."""
+    async with _FETCH_SEMAPHORE:
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                if resp.status != 200:
+                    return ""
+                html = await resp.text(encoding="utf-8", errors="replace")
+        except Exception:
+            return ""
+
+    soup = BeautifulSoup(html, "html.parser")
+    # DC Inside 본문 영역: div.write_div
+    content_div = soup.select_one("div.write_div")
+    if not content_div:
+        return ""
+
+    text = content_div.get_text(separator=" ", strip=True)
+    return text[:_CONTENT_LIMIT]
 
 
 async def fetch(limit: int = 30) -> list[NewsItem]:
@@ -32,71 +56,79 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
                     print(f"[dcinside] HTTP {resp.status}")
                     return []
                 html = await resp.text(encoding="utf-8", errors="replace")
+
+            soup = BeautifulSoup(html, "html.parser")
+            rows = soup.select("tr.ub-content")
+
+            items = []
+            for row in rows[:limit]:
+                try:
+                    # 공지/AD 행 건너뜀
+                    row_classes = row.get("class", [])
+                    if "notice-cont" in row_classes:
+                        continue
+                    num_td = row.select_one("td.gall_num")
+                    if num_td and num_td.get_text(strip=True) in _SKIP_TYPES:
+                        continue
+
+                    title_td = row.select_one("td.gall_tit")
+                    if not title_td:
+                        continue
+
+                    # 댓글수 링크(.reply_num) 제외하고 첫 번째 a 태그가 제목
+                    a_tag = next(
+                        (a for a in title_td.select("a") if "reply_num" not in a.get("class", [])),
+                        None,
+                    )
+                    if not a_tag:
+                        continue
+
+                    title = a_tag.get_text(strip=True)
+                    if not title:
+                        continue
+
+                    # 말머리 파싱 — 이모지 포함 케이스 대응 (예: '📪정보', '🔨활용')
+                    subject_td = row.select_one("td.gall_subject")
+                    subject = subject_td.get_text(strip=True) if subject_td else ""
+                    if not any(s in subject for s in _ALLOWED_SUBJECTS):
+                        continue
+
+                    href = a_tag.get("href", "")
+                    url = _POST_BASE + href if href.startswith("/") else href
+
+                    # 추천수 파싱 — 念글(추천 5↑) 은 urgency=4(즉시), 나머지는 urgency=3(브리핑)
+                    recommend = 0
+                    rec_td = row.select_one("td.gall_recommend")
+                    if rec_td:
+                        try:
+                            recommend = int(rec_td.get_text(strip=True))
+                        except ValueError:
+                            pass
+
+                    items.append(NewsItem(
+                        title=title,
+                        source="DCInside 싱귤래리티 갤",
+                        url=url,
+                        is_official=False,
+                        is_rumor=True,
+                        reliability=3,
+                        urgency=4 if recommend >= 5 else 3,
+                    ))
+                except Exception:
+                    continue
+
+            # 본문 내용 병렬 fetch
+            if items:
+                contents = await asyncio.gather(
+                    *[_fetch_post_content(session, it.url) for it in items],
+                    return_exceptions=True,
+                )
+                for item, content in zip(items, contents):
+                    if isinstance(content, str) and content:
+                        item.summary = content
+
     except Exception as e:
         print(f"[dcinside] 요청 실패: {e}")
         return []
-
-    soup = BeautifulSoup(html, "html.parser")
-    rows = soup.select("tr.ub-content")
-
-    items = []
-    for row in rows[:limit]:
-        try:
-            # 공지/AD 행 건너뜀 (클래스 또는 숫자 컬럼 텍스트로 판단)
-            row_classes = row.get("class", [])
-            if "notice-cont" in row_classes:
-                continue
-            num_td = row.select_one("td.gall_num")
-            if num_td and num_td.get_text(strip=True) in _SKIP_TYPES:
-                continue
-
-            title_td = row.select_one("td.gall_tit")
-            if not title_td:
-                continue
-
-            # 댓글수 링크(.reply_num) 제외하고 첫 번째 a 태그가 제목
-            a_tag = next(
-                (a for a in title_td.select("a") if "reply_num" not in a.get("class", [])),
-                None,
-            )
-            if not a_tag:
-                continue
-
-            title = a_tag.get_text(strip=True)
-            if not title:
-                continue
-
-            # 말머리(분류 태그) 파싱 — 별도 컬럼 td.gall_subject에서 추출
-            # 이모지가 앞에 붙는 경우가 있어서 포함 여부로 체크 (예: '📪정보', '🔨활용')
-            subject_td = row.select_one("td.gall_subject")
-            subject = subject_td.get_text(strip=True) if subject_td else ""
-
-            # 허용 말머리 없으면 스킵 (일반 잡담 등 제외)
-            if not any(s in subject for s in _ALLOWED_SUBJECTS):
-                continue
-
-            href = a_tag.get("href", "")
-            url = _POST_BASE + href if href.startswith("/") else href
-
-            # 추천수 파싱 — 念글(추천 5↑) 은 urgency=4(즉시), 나머지는 urgency=3(브리핑)
-            recommend = 0
-            rec_td = row.select_one("td.gall_recommend")
-            if rec_td:
-                try:
-                    recommend = int(rec_td.get_text(strip=True))
-                except ValueError:
-                    pass
-
-            items.append(NewsItem(
-                title=title,
-                source="DCInside 싱귤래리티 갤",
-                url=url,
-                is_official=False,
-                is_rumor=True,
-                reliability=3,  # 전용 AI 갤러리 — 일반 커뮤니티(2)보다 한 단계 위
-                urgency=4 if recommend >= 5 else 3,  # 念글=즉시, 일반=브리핑
-            ))
-        except Exception:
-            continue
 
     return items
