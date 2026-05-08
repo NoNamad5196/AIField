@@ -76,7 +76,7 @@ async def _fetch_one(
         if not raw_summary:
             content_list = entry.get("content", [])
             raw_summary = content_list[0].get("value", "") if content_list else ""
-        summary = _strip_html(raw_summary)[:300]
+        summary = _strip_html(raw_summary)[:600]
 
         items.append(NewsItem(
             title=title,
