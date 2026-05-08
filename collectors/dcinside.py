@@ -19,6 +19,8 @@ _HEADERS = {
     "Referer": "https://gall.dcinside.com/",
 }
 _SKIP_TYPES = {"공지", "AD", "설문"}
+# 허용 말머리 — 정보/활용/루머 계열만 수집
+_ALLOWED_SUBJECTS = {"정보", "활용", "유출", "루머", "외신", "속보"}
 
 
 async def fetch(limit: int = 30) -> list[NewsItem]:
@@ -62,6 +64,18 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
 
             title = a_tag.get_text(strip=True)
             if not title:
+                continue
+
+            # 말머리(분류 태그) 파싱 — em 태그에서 추출
+            subject = None
+            for em in title_td.select("em"):
+                text = em.get_text(strip=True)
+                if text:
+                    subject = text
+                    break
+
+            # 허용 말머리 없으면 스킵 (잡담/질문/유머 등 제외)
+            if not subject or subject not in _ALLOWED_SUBJECTS:
                 continue
 
             href = a_tag.get("href", "")
