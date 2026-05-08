@@ -67,11 +67,12 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
                 continue
 
             # 말머리(분류 태그) 파싱 — 별도 컬럼 td.gall_subject에서 추출
+            # 이모지가 앞에 붙는 경우가 있어서 포함 여부로 체크 (예: '📪정보', '🔨활용')
             subject_td = row.select_one("td.gall_subject")
             subject = subject_td.get_text(strip=True) if subject_td else ""
 
             # 허용 말머리 없으면 스킵 (일반 잡담 등 제외)
-            if subject not in _ALLOWED_SUBJECTS:
+            if not any(s in subject for s in _ALLOWED_SUBJECTS):
                 continue
 
             href = a_tag.get("href", "")
