@@ -67,22 +67,29 @@ def breaking_news_user_prompt(item: NewsItem) -> str:
 def verification_user_prompt(item: NewsItem) -> str:
     """루머 스레드에 달 Perlica 검증 결과 메시지 생성용."""
     official_str = "예" if item.is_official else "아니오"
+    search_section = (
+        f"\n검증 서칭 결과:\n{item.verification_context}"
+        if item.verification_context
+        else "\n검증 서칭 결과: 없음 (HN/해외 커뮤니티에서 관련 소식 미확인)"
+    )
     return "\n".join([
-        "진천우가 방금 루머를 올렸어. 그 루머에 대한 펠리카의 검증 결과를 스레드에 달 댓글로 써줘.",
+        "진천우가 방금 루머를 올렸어. 펠리카가 HN 서칭까지 마친 후 검증 결과를 스레드에 달 댓글로 써줘.",
         "",
         f"제목: {item.title}",
         f"출처: {item.source}",
         f"공식 여부: {official_str}",
         f"신뢰도: {item.reliability}/5 | 긴급도: {item.urgency}/5",
         f"요약: {item.summary or '요약 없음'}",
+        search_section,
         "",
         "요구사항:",
         "- Discord Markdown 사용",
         "- 4~7줄 이내",
         "- 핵심 내용을 3~5줄로 요약해서 반드시 포함 (요약 없으면 제목 기반으로 유추)",
         "- 펠리카 말투: 차분하고 정확한 반말",
-        "- 공식/루머/참고자료/무시 중 하나로 분류 명시",
+        "- 검증 서칭 결과를 반영해서 공식/루머/참고자료/무시 중 하나로 분류 명시",
         "- 루머면 '루머로 분류할게. 즉시 알림은 보류하고 추적하자.' 포함",
+        "- HN에서 반응 있었으면 그 내용 간략히 언급",
         "- 딱딱한 비서체, 과장 선동 절대 금지",
     ])
 

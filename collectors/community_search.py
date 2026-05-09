@@ -165,3 +165,39 @@ async def fetch_reactions(item: NewsItem) -> str:
         f"HN {len(hn_hits)}건, Reddit {len(reddit_hits)}건 (keyword={keyword!r})"
     )
     return result
+
+
+async def search_for_verification(item: NewsItem) -> str:
+    """
+    루머/커뮤니티 글에 대한 펠리카 검증용 — HN에서 관련 소식을 검색한다.
+    HN 검색 결과와 신뢰도 힌트를 텍스트로 반환한다.
+    결과 없으면 빈 문자열 반환.
+    """
+    keyword = _extract_keyword(item.title)
+    if not keyword:
+        return ""
+
+    async with aiohttp.ClientSession() as session:
+        hn_hits = await _fetch_hn(session, keyword)
+
+    if not hn_hits:
+        print(f"[community_search] 검증 검색 결과 없음 — keyword={keyword!r}")
+        return "HN 검색 결과 없음 — 아직 해외 커뮤니티에서 다루지 않은 소식."
+
+    lines = ["【HN 검색 결과】"]
+    for h in hn_hits[:3]:
+        lines.append(
+            f"- {h['title']} (포인트: {h['points']}, 댓글: {h['num_comments']})"
+        )
+
+    max_points = max(h["points"] for h in hn_hits)
+    if max_points >= 300:
+        lines.append("→ HN 반응 매우 활발 — 공식 발표이거나 높은 신뢰도 가능성 있음.")
+    elif max_points >= 50:
+        lines.append("→ HN에서 일부 반응 있음 — 추가 확인 권장.")
+    else:
+        lines.append("→ HN 반응 미약 — 공식 확인 필요, 루머 가능성 높음.")
+
+    result = "\n".join(lines)
+    print(f"[community_search] 검증 검색 완료 — HN {len(hn_hits)}건, 최고 {max_points}pt")
+    return result
