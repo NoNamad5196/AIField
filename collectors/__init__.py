@@ -9,7 +9,7 @@ AIField 수집기 패키지.
 import asyncio
 from scorer import NewsItem, score
 
-from collectors import hacker_news, huggingface, dcinside, rss
+from collectors import hacker_news, huggingface, dcinside, rss, reddit
 
 
 async def fetch_all() -> list[NewsItem]:
@@ -19,11 +19,12 @@ async def fetch_all() -> list[NewsItem]:
         hacker_news.fetch(),
         huggingface.fetch(),
         dcinside.fetch(),
+        reddit.fetch(),
         return_exceptions=True,
     )
 
     items: list[NewsItem] = []
-    names = ["RSS(공식)", "HackerNews", "HuggingFace", "DCInside"]
+    names = ["RSS(공식)", "HackerNews", "HuggingFace", "DCInside", "Reddit"]
     for name, result in zip(names, results):
         if isinstance(result, Exception):
             print(f"[collectors] {name} 수집 실패: {result}")
