@@ -41,7 +41,9 @@ def rumor_user_prompt(item: NewsItem) -> str:
     """Qianyu가 루머/떡밥을 #aifield-live에 올릴 메시지 생성용."""
     rumor_str = "예" if item.is_rumor else "아니오"
     official_str = "예" if item.is_official else "아니오"
-    return "\n".join([
+    is_dcinside = "dcinside" in item.source.lower() or "싱귤래리티" in item.source
+
+    lines = [
         "다음 AI 뉴스 떡밥을 발견했어. 진천우 말투로 #aifield-live에 올릴 Discord 메시지를 써줘.",
         "",
         f"제목: {item.title}",
@@ -61,7 +63,12 @@ def rumor_user_prompt(item: NewsItem) -> str:
         "- 루머라면 '아직 공식은 아니야' 강조",
         "- 마지막 줄에 한줄평 포함 (예: '아직 한 걸음까진 아니어도, 발은 들썩인 것 같아.' / '그냥 지나치긴 아까운 한 걸음이야.')",
         "- 전투 대사, 인터넷 밈봇 표현, AGI 확정 선동 절대 금지",
-    ])
+    ]
+
+    if is_dcinside and item.url:
+        lines.append(f"- 메시지 맨 마지막 줄에 원문 링크 반드시 포함 (형식: 🔗 {item.url})")
+
+    return "\n".join(lines)
 
 
 def community_reaction_user_prompt(item: NewsItem) -> str:
