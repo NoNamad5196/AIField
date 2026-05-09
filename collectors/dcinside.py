@@ -122,7 +122,7 @@ async def fetch(limit: int = 30) -> list[NewsItem]:
 
                     items.append(NewsItem(
                         title=title,
-                        source="DCInside 싱귤래리티 갤",
+                        source="DCInside 특이점이 온다 갤",
                         url=url,
                         is_official=False,
                         is_rumor=True,

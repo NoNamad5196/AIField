@@ -134,7 +134,8 @@ class AIFieldScheduler:
                     print("[scheduler] 커뮤니티 반응 없음 — 진천우 답글 생략")
             else:
                 thread_id = await self.qianyu.post_rumor(item)
-                # 펠리카 검증 전 HN 서칭 (최대 12초)
+                # 펠리카 검증 전 HN 서칭 (최대 12초) + 최소 5초 대기
+                search_start = asyncio.get_event_loop().time()
                 try:
                     item.verification_context = await asyncio.wait_for(
                         search_for_verification(item), timeout=12.0
@@ -142,7 +143,11 @@ class AIFieldScheduler:
                 except asyncio.TimeoutError:
                     print("[scheduler] 검증 서칭 타임아웃")
                     item.verification_context = ""
-                await asyncio.sleep(1)
+                # 서칭이 빨리 끝나도 최소 5초는 대기 (자연스러운 "읽고 생각하는" 딜레이)
+                elapsed = asyncio.get_event_loop().time() - search_start
+                remaining = max(0.0, 5.0 - elapsed)
+                if remaining > 0:
+                    await asyncio.sleep(remaining)
                 await self.perlica.post_verification(thread_id, item)
         except Exception as e:
             print(f"[scheduler] 즉시 알림 실패: {e}")
