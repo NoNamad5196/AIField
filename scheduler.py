@@ -28,7 +28,9 @@ KST = timezone(timedelta(hours=9))
 SCAN_INTERVAL_SEC = 30 * 60      # 30분마다 수집
 BRIEFING_HOURS_KST = (9, 21)     # 09:00, 21:00 KST
 BRIEFING_MAX_ITEMS = 10
-IMMEDIATE_ALERT_MIN_LEVEL = 4    # Level 4 이상 즉시 알림
+IMMEDIATE_ALERT_MIN_LEVEL = 4    # Level 4 이상 즉시 알림 (공식)
+RUMOR_IMMEDIATE_MIN_LEVEL = 3    # Level 3 이상 즉시 알림 (루머/커뮤니티)
+RUMOR_IMMEDIATE_MAX_PER_CYCLE = 2  # 쿨타임당 진천우 즉시 포스팅 최대 건수
 
 
 class AIFieldScheduler:
@@ -74,11 +76,31 @@ class AIFieldScheduler:
               f"(DB 누계: {stats['total']}건, 미브리핑: {stats['unbriefed']}건)")
 
         immediate = [it for it in new_items if it.alert_level >= IMMEDIATE_ALERT_MIN_LEVEL]
-        buffered  = [it for it in new_items if it.alert_level == 3]
+
+        # Level 3 루머/커뮤니티 → 진천우 즉시 알림 (사이클당 최대 2건, 긴급도+영향도 순)
+        rumor_candidates = [
+            it for it in new_items
+            if not it.is_official and it.alert_level == RUMOR_IMMEDIATE_MIN_LEVEL
+        ]
+        rumor_candidates.sort(
+            key=lambda x: (x.urgency + x.singularity_impact), reverse=True
+        )
+        rumor_immediate = rumor_candidates[:RUMOR_IMMEDIATE_MAX_PER_CYCLE]
+
+        # Level 3 공식 항목 + 즉시 포스팅되지 않는 루머는 브리핑 버퍼
+        rumor_immediate_urls = {it.url for it in rumor_immediate}
+        buffered = [
+            it for it in new_items
+            if it.alert_level == 3 and it.url not in rumor_immediate_urls
+        ]
 
         self._briefing_buffer.extend(buffered)
 
         for item in immediate:
+            await self._post_immediate(item)
+            await asyncio.sleep(1.5)
+
+        for item in rumor_immediate:
             await self._post_immediate(item)
             await asyncio.sleep(1.5)
 

@@ -71,7 +71,7 @@ def _infer_reliability(item: NewsItem) -> int:
     if "arxiv" in src:
         return 4
     if any(s in src for s in _COMMUNITY_SOURCES):
-        return 2
+        return 3
     if item.is_rumor:
         return 1
     return 3
