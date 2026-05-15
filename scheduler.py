@@ -182,6 +182,13 @@ class AIFieldScheduler:
             print("[scheduler] 브리핑 항목 없음 — 생략")
             return
 
+        # HuggingFace 모델만 있거나 DCInside만 있고 수가 적으면 브리핑할 가치 없음
+        hf_only = all("HuggingFace" in it.source for it in self._briefing_buffer)
+        notable = [it for it in self._briefing_buffer if "HuggingFace" not in it.source]
+        if hf_only or len(notable) < 2:
+            print(f"[scheduler] 브리핑 의미 없음 (주목할 항목 {len(notable)}개) — 생략")
+            return
+
         now = datetime.now(KST)
         date_str = now.strftime("%Y-%m-%d")
         fallback = _format_briefing(self._briefing_buffer, now)
