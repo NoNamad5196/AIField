@@ -57,6 +57,7 @@ class QianyuBot(discord.Client):
             QIANYU_SYSTEM_PROMPT,
             rumor_user_prompt(item),
             fallback=_format_rumor(item),
+            bot="qianyu",
         )
         # DCInside 글: 링크를 Gemini에 맡기지 않고 코드에서 직접 붙임
         is_dcinside = "특이점" in item.source or "dcinside" in item.source.lower()
@@ -77,6 +78,7 @@ class QianyuBot(discord.Client):
             QIANYU_SYSTEM_PROMPT,
             community_reaction_user_prompt(item),
             fallback=_format_community_reaction(item),
+            bot="qianyu",
         )
         channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
         original = await channel.fetch_message(message_id)

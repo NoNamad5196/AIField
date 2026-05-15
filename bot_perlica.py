@@ -115,6 +115,7 @@ class PerlicaBot(discord.Client):
             PERLICA_SYSTEM_PROMPT,
             breaking_news_user_prompt(item),
             fallback=_format_breaking_news(item),
+            bot="perlica",
         )
         channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
         first = content[:2000]
@@ -130,6 +131,7 @@ class PerlicaBot(discord.Client):
             PERLICA_SYSTEM_PROMPT,
             verification_user_prompt(item),
             fallback=_format_verification(item),
+            bot="perlica",
         )
         channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
         original = await channel.fetch_message(message_id)

@@ -184,6 +184,7 @@ class AIFieldScheduler:
             PERLICA_SYSTEM_PROMPT,
             briefing_user_prompt(self._briefing_buffer, date_str),
             fallback=fallback,
+            bot="perlica",
         )
         try:
             await self.perlica.post_briefing(content)

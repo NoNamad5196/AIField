@@ -7,7 +7,9 @@ QIANYU_BOT_TOKEN = os.getenv("QIANYU_BOT_TOKEN")
 PERLICA_BOT_TOKEN = os.getenv("PERLICA_BOT_TOKEN")
 AIFIELD_LIVE_CHANNEL_ID = int(os.getenv("AIFIELD_LIVE_CHANNEL_ID", "0"))
 AIFIELD_BRIEFING_CHANNEL_ID = int(os.getenv("AIFIELD_BRIEFING_CHANNEL_ID", "0"))
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # 선택사항 — 없으면 하드코딩 폴백
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # 레거시 — 아래 두 키가 없을 때 폴백
+GEMINI_API_KEY_QIANYU  = os.getenv("GEMINI_API_KEY_QIANYU")  or GEMINI_API_KEY
+GEMINI_API_KEY_PERLICA = os.getenv("GEMINI_API_KEY_PERLICA") or GEMINI_API_KEY
 AIFIELD_GUILD_ID: int | None = int(os.getenv("AIFIELD_GUILD_ID") or 0) or None  # 선택사항 — 설정 시 슬래시 명령어 즉시 적용
 
 def _require_str(name: str, val) -> None:
