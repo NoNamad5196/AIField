@@ -30,14 +30,36 @@ _HOT_RECOMMEND = 10   # 念글 기준 추천수
 _CONTENT_LIMIT = 600
 _FETCH_SEMAPHORE = asyncio.Semaphore(3)
 
-_URL_RE = re.compile(r"https?://\S+")
+_URL_RE     = re.compile(r"https?://\S+")
+_YOUTUBE_RE = re.compile(
+    r"https?://(?:www\.)?youtu(?:\.be/|be\.com/(?:watch\?v=|embed/|shorts/))([\w-]{11})"
+)
+# iframe src 에서 유튜브 video ID 추출용 (protocol-relative URL 포함)
+_YT_SRC_RE  = re.compile(r"(?:https?:)?//(?:www\.)?youtube(?:-nocookie)?\.com/embed/([\w-]{11})")
 
 
 def _clean_content(raw: str) -> str:
-    """URL 제거 + 공백 정리 후 의미 있는 텍스트만 반환."""
+    """URL 제거 + URL 파편(?si=… 등) 제거 + 공백 정리."""
     text = _URL_RE.sub("", raw)
+    text = re.sub(r"[?&][\w%]+=[\w%-]+", "", text)  # ?si=xxx &v=yyy 파편 제거
     text = re.sub(r"\s+", " ", text).strip()
-    return text[:_CONTENT_LIMIT] if len(text) > 15 else ""
+    return text[:_CONTENT_LIMIT] if len(text) > 20 else ""
+
+
+async def _fetch_youtube_title(session: aiohttp.ClientSession, video_id: str) -> str:
+    """YouTube oEmbed API로 영상 제목 반환 (API 키 불필요)."""
+    oembed_url = (
+        f"https://www.youtube.com/oembed"
+        f"?url=https://www.youtube.com/watch?v={video_id}&format=json"
+    )
+    try:
+        async with session.get(oembed_url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            if resp.status == 200:
+                data = await resp.json(content_type=None)
+                return data.get("title", "")
+    except Exception:
+        pass
+    return ""
 
 
 async def _fetch_post_content(session: aiohttp.ClientSession, url: str) -> str:
@@ -56,7 +78,29 @@ async def _fetch_post_content(session: aiohttp.ClientSession, url: str) -> str:
     if not content_div:
         return ""
 
-    return _clean_content(content_div.get_text(separator=" ", strip=True))
+    raw_text = content_div.get_text(separator=" ", strip=True)
+    body      = _clean_content(raw_text)
+
+    # YouTube 영상 제목 보강 — iframe src 또는 본문 URL에서 video ID 추출
+    video_id = None
+    for iframe in content_div.select("iframe[src]"):
+        m = _YT_SRC_RE.search(iframe.get("src", ""))
+        if m:
+            video_id = m.group(1)
+            break
+    if not video_id:
+        m = _YOUTUBE_RE.search(raw_text)
+        if m:
+            video_id = m.group(1)
+
+    if video_id:
+        title = await _fetch_youtube_title(session, video_id)
+        if title:
+            prefix = f"[YouTube: {title}] "
+            # 본문이 빈약하면 제목으로 대체, 아니면 앞에 덧붙임
+            body = (prefix + body).strip() if body else prefix.strip()
+
+    return body[:_CONTENT_LIMIT] if len(body) > 20 else ""
 
 
 async def fetch(limit: int = 30) -> list[NewsItem]:
