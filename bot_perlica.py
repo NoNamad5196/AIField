@@ -142,31 +142,24 @@ class PerlicaBot(discord.Client):
 
 
 def _format_breaking_news(item: NewsItem) -> str:
-    official_tag = "✅ 공식 발표 확인" if item.is_official else "❌ 미확인"
+    summary_short = (item.summary or "")[:200].strip()
+    official_str = "공식 발표 확인" if item.is_official else "미확인"
     return (
-        f"🚨 **속보**\n\n"
-        f"관리자, 확인했어. 공식 출처 기준으로 정리할게.\n\n"
-        f"**{item.title}**\n"
-        f"{item.summary}\n\n"
-        f"📍 출처: {item.source}\n"
-        f"{official_tag}\n"
-        f"🔺 특이점 영향도: {item.singularity_impact}/5 | "
-        f"⚡ 긴급도: {item.urgency}/5\n"
-        f"🛡️ 신뢰도: {item.reliability}/5 | "
-        f"🔧 실용성: {item.practicality}/5\n"
-        f"📊 알림 레벨: Level {item.alert_level}\n\n"
-        f"*AI는 또 한 걸음 앞으로 나아갔어.*"
+        f"**속보** — 관리자, 확인했어. 공식 출처 기준으로 정리할게.\n\n"
+        f"**{item.title}**\n\n"
+        f"{summary_short}\n\n"
+        f"출처: {item.source} | {official_str} | "
+        f"영향 {item.singularity_impact} | 긴급 {item.urgency} | 신뢰 {item.reliability}\n"
+        f"AI는 또 한 걸음 앞으로 나아갔어."
     )
 
 
 def _format_verification(item: NewsItem) -> str:
-    verdict = "공식 출처 확인 완료." if item.is_official else "아직 공식 발표는 확인되지 않았어."
     classification = "공식 발표" if item.is_official else "루머로 분류할게. 즉시 알림은 보류하고 추적하자."
+    search_note = f"\n{item.verification_context}" if item.verification_context else ""
     return (
         f"관리자, 확인했어.\n\n"
-        f"**검증 결과: {item.title}**\n\n"
-        f"공식 여부: {'✅ 공식' if item.is_official else '❌ 루머'}\n"
-        f"신뢰도: {item.reliability}/5 | 긴급도: {item.urgency}/5\n\n"
-        f"{verdict}\n"
+        f"**{item.title}**{search_note}\n\n"
+        f"출처: {item.source} | 신뢰 {item.reliability} | 긴급 {item.urgency}\n"
         f"최종 판단: {classification}"
     )

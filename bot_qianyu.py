@@ -84,20 +84,15 @@ class QianyuBot(discord.Client):
 
 
 def _format_rumor(item: NewsItem) -> str:
-    rumor_tag = "⚠️ 루머" if item.is_rumor else "📌 정보"
-    official_tag = "❌ 미확인" if not item.is_official else "✅ 공식"
+    summary_short = (item.summary or "")[:200].strip()
+    official_str = "공식" if item.is_official else "미확인"
     return (
         f"관리자, 이거 봐! 재밌는 거 하나 찾았어. 헤헤.\n\n"
-        f"**{item.title}**\n"
-        f"{item.summary}\n\n"
-        f"📍 출처: {item.source}\n"
-        f"{rumor_tag} | {official_tag}\n"
-        f"⚡ 긴급도: {item.urgency}/5 | "
-        f"🛡️ 신뢰도: {item.reliability}/5 | "
-        f"🔧 실용성: {item.practicality}/5\n"
-        f"📊 알림 레벨: Level {item.alert_level}\n\n"
-        f"일단 내가 떡밥으로 잡아둘게. 펠리카한테 넘기면 제대로 정리해줄 거야.\n"
-        f"*아직 한 걸음까진 아니어도, 발은 들썩인 것 같아.*"
+        f"**{item.title}**\n\n"
+        f"{summary_short}\n\n"
+        f"출처: {item.source} | {official_str} | "
+        f"신뢰 {item.reliability} | 긴급 {item.urgency} | 실용 {item.practicality}\n"
+        f"아직 한 걸음까진 아니어도, 발은 들썩인 것 같아."
     )
 
 
@@ -105,10 +100,10 @@ def _format_community_reaction(item: NewsItem) -> str:
     if item.community_summary:
         reaction = item.community_summary
     else:
-        reaction = f"'{item.title[:40]}' 관련 커뮤니티 반응은 아직 못 찾았어. 조금 이따 다시 확인해볼게."
+        reaction = f"'{item.title[:40]}' 관련 커뮤니티 반응은 아직 못 찾았어."
     return (
         f"관리자, 커뮤니티 반응 들고 왔어!\n\n"
-        f"**{item.title}** — 커뮤 분위기\n"
+        f"**{item.title}**\n"
         f"{reaction}\n\n"
         f"그냥 지나치긴 아까운 한 걸음이야."
     )
