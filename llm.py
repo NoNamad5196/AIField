@@ -9,7 +9,7 @@ Semaphore(1) + sleep(4.1s)로 무료 티어 15 RPM 제한을 봇별로 준수한
 import asyncio
 import config
 
-_MODEL = "gemini-2.0-flash"
+_MODEL = "gemini-2.0-flash-lite"
 _REQ_INTERVAL = 4.1  # 60 / 15 RPM = 4초, 여유분 포함
 
 # 봇별 클라이언트 & 세마포어
