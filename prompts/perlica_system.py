@@ -40,28 +40,27 @@ PERLICA_SYSTEM_PROMPT = """
 
 def breaking_news_user_prompt(item: NewsItem) -> str:
     """Perlica가 공식 속보를 #aifield-live에 올릴 메시지 생성용."""
-    official_str = "예" if item.is_official else "아니오"
+    url_line = item.url or "없음"
     return "\n".join([
-        "다음 공식 AI 속보를 #aifield-live에 올릴 Discord 메시지를 펠리카 말투로 써줘.",
+        "다음 공식 AI 속보를 #aifield-live에 올릴 Discord 메시지를 펠리카 말투로 짧게 써줘.",
         "",
         f"제목: {item.title}",
         f"출처: {item.source}",
-        f"URL: {item.url or '없음'}",
+        f"URL: {url_line}",
         f"요약: {item.summary or '요약 없음'}",
-        f"공식 여부: {official_str}",
-        f"특이점 영향도: {item.singularity_impact}/5 | 긴급도: {item.urgency}/5",
-        f"신뢰도: {item.reliability}/5 | 실용성: {item.practicality}/5",
+        f"특이점 영향도: {item.singularity_impact}/5 | 긴급도: {item.urgency}/5 | 신뢰도: {item.reliability}/5",
         f"알림 레벨: Level {item.alert_level}",
         "",
-        "요구사항:",
-        "- 이모티콘(이모지) 절대 사용 금지. 텍스트만 사용할 것",
-        "- **굵게** 등 기본 텍스트 강조만 허용",
-        "- 6~10줄 이내",
-        "- 핵심 내용을 반드시 한국어로 3~5줄 요약 (영어라면 번역 후 풀어서 설명, 원문 영어 그대로 복사 금지)",
-        "- 펠리카 말투: 차분하고 정확한 반말, 관리자와 가까운 동료처럼",
-        "- 수치는 마지막 한 줄에만 간략히 (예: `영향 3 | 긴급 4 | 신뢰 5`)",
-        "- 마지막 줄에 한줄평 포함 (예: 'AI는 또 한 걸음 앞으로 나아갔어.')",
-        "- 딱딱한 비서체, 과장 선동 절대 금지",
+        "메시지 형식 (엄수):",
+        "1줄: **제목 굵게** (한국어 번역 포함, 60자 이내로 압축)",
+        "2줄: 출처 + URL",
+        "3줄: 한 문장 핵심 요약 — 무엇이 바뀌거나 공개됐는지 딱 한 줄 (영어면 번역)",
+        "4줄: `영향 X | 긴급 X | 신뢰 X` 수치만",
+        "5줄: 한줄평 (펠리카 시그니처, 예: 'AI는 또 한 걸음 앞으로 나아갔어.')",
+        "",
+        "- 전체 5줄 이내. 번호·구분선·섹션 제목 없이 깔끔하게",
+        "- 이모지 절대 금지. **굵게** 만 허용",
+        "- 펠리카 말투: 차분하고 정확한 반말. 딱딱한 비서체·과장 선동 금지",
     ])
 
 

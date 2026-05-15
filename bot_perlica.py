@@ -144,13 +144,13 @@ class PerlicaBot(discord.Client):
 
 
 def _format_breaking_news(item: NewsItem) -> str:
-    summary_short = (item.summary or "")[:200].strip()
-    official_str = "공식 발표 확인" if item.is_official else "미확인"
+    title_short = item.title[:60].strip()
+    summary_one = (item.summary or "").split(".")[0].strip()[:120] or item.source
+    url_line = item.url or item.source
     return (
-        f"**속보** — 관리자, 확인했어. 공식 출처 기준으로 정리할게.\n\n"
-        f"**{item.title}**\n\n"
-        f"{summary_short}\n\n"
-        f"출처: {item.source} | {official_str} | "
+        f"**{title_short}**\n"
+        f"{item.source} | {url_line}\n"
+        f"{summary_one}.\n"
         f"영향 {item.singularity_impact} | 긴급 {item.urgency} | 신뢰 {item.reliability}\n"
         f"AI는 또 한 걸음 앞으로 나아갔어."
     )
