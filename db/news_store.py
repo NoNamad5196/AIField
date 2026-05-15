@@ -92,6 +92,17 @@ class NewsStore:
         )
         self._conn.commit()
 
+    def cleanup_old_unbriefed(self, days: int = 5) -> int:
+        """days일보다 오래된 미브리핑 항목을 briefed=1로 처리해 버퍼에서 제거한다."""
+        from datetime import timedelta
+        cutoff_str = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        cur = self._conn.execute(
+            "UPDATE news SET briefed = 1 WHERE briefed = 0 AND created_at < ?",
+            (cutoff_str,),
+        )
+        self._conn.commit()
+        return cur.rowcount
+
     # ------------------------------------------------------------------
     # 읽기
     # ------------------------------------------------------------------

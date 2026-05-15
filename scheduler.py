@@ -167,6 +167,11 @@ class AIFieldScheduler:
             await self._post_briefing()
 
     async def _post_briefing(self):
+        # 오래된 미브리핑 항목 자동 정리 (5일 초과분)
+        cleaned = self._store.cleanup_old_unbriefed(days=5)
+        if cleaned:
+            print(f"[scheduler] 오래된 미브리핑 {cleaned}건 자동 정리")
+
         # 버퍼가 비어 있으면 DB 미브리핑 항목으로 보완
         if not self._briefing_buffer:
             rows = self._store.get_unbriefed(min_level=3)
@@ -256,65 +261,40 @@ def _row_to_news_item(row: dict) -> NewsItem:
 
 
 def _format_briefing(items: list[NewsItem], now: datetime) -> str:
-    """Gemini 실패 시 fallback — 자연어 서술 (고정 구조 없음)."""
+    """Gemini 실패 시 fallback — 공식 3개 요약 + 커뮤 서술체."""
     date_str  = now.strftime("%Y-%m-%d")
     hf_items  = [it for it in items if "HuggingFace" in it.source]
     notable   = [it for it in items if "HuggingFace" not in it.source]
-    official  = [it for it in notable if it.is_official]
+    official  = sorted([it for it in notable if it.is_official],
+                       key=lambda x: x.singularity_impact, reverse=True)
     community = [it for it in notable if not it.is_official]
 
     lines = [f"**[AIField 일일 브리핑] {date_str}**", ""]
 
-    # 가장 눈에 띄는 항목부터 — 공식이 있으면 공식 우선, 없으면 커뮤 시작
-    para1 = []
+    # 공식 발표 — 영향도 높은 순 최대 3개
     if official:
-        top = official[0]
-        summary = (top.summary or "")[:130].strip()
-        sent = f"오늘은 **{top.source}** 쪽에서 '{top.title[:55]}'가 올라왔어."
-        if summary:
-            sent += f" {summary}"
-        para1.append(sent)
-        # 공식 발표와 커뮤 얘기 연결 가능하면 같은 문단에
-        if community:
-            top_c = community[0]
-            c_summary = (top_c.summary or "")[:80].strip()
-            link = f"갤에서도 '{top_c.title[:45]}'처럼"
-            if c_summary:
-                link += f" {c_summary}"
-            link += " 비슷한 흐름의 얘기가 올라오기도 했어."
-            para1.append(link)
-    elif community:
-        top = community[0]
-        summary = (top.summary or "")[:130].strip()
-        sent = f"공식 발표는 없었고, 오늘은 커뮤 중심으로 흘러갔어."
-        if summary:
-            sent += f" 갤에선 '{top.title[:50]}'가 눈에 띄었는데, {summary}"
-        para1.append(sent)
-    else:
-        para1.append("오늘은 특별히 눈에 띄는 소식은 없었어.")
-
-    lines.append(" ".join(para1))
-    lines.append("")
-
-    # 나머지 커뮤 항목들 — 있으면 자연스럽게 이어서
-    remaining_community = community[1:] if official else community[1:]
-    other_official = official[1:3]
-    rest = other_official + remaining_community[:3]
-
-    if rest:
-        parts = []
-        for it in rest:
-            s = (it.summary or "")[:80].strip()
-            if s:
-                parts.append(f"'{it.title[:40]}'도 있었어 — {s}")
-            else:
-                parts.append(f"'{it.title[:45]}'도 올라왔어.")
-        if hf_items:
-            parts.append(f"HuggingFace엔 신규 모델 {len(hf_items)}건이 올라왔어.")
-        lines.append(" ".join(parts))
+        for it in official[:3]:
+            summary = (it.summary or "")[:120].strip()
+            line = f"**{it.title[:60]}** ({it.source})"
+            if summary:
+                line += f" — {summary}"
+            lines.append(line)
         lines.append("")
-    elif hf_items:
-        lines.append(f"HuggingFace엔 신규 모델 {len(hf_items)}건이 올라왔어.")
+
+    # 커뮤니티 — 문장체 서술
+    if community:
+        topics = []
+        for it in community[:4]:
+            s = (it.summary or "")[:80].strip()
+            topics.append(f"'{it.title[:40]}'" + (f"({s})" if s else ""))
+        comm_line = "오늘 커뮤에선 " + ", ".join(topics[:2]) + " 얘기가 있었어."
+        if len(topics) > 2:
+            comm_line += " " + ", ".join(topics[2:]) + " 같은 내용도 올라왔고."
+        lines.append(comm_line)
+        lines.append("")
+
+    if hf_items:
+        lines.append(f"HuggingFace엔 주목할 만한 모델 {len(hf_items)}건 올라왔어.")
         lines.append("")
 
     lines.append("관리자, 너무 무리하지 말고 핵심만 먼저 보면 돼.")

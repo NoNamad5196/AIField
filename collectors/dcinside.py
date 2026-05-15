@@ -27,7 +27,7 @@ _HEADERS = {
 _SKIP_TYPES = {"공지", "AD", "설문"}
 _QUALITY_SUBJECTS = {"정보", "활용", "자료", "후기", "유출", "외신", "속보", "루머"}
 _HOT_RECOMMEND = 10   # 念글 기준 추천수
-_CONTENT_LIMIT = 600
+_CONTENT_LIMIT = 1200
 _FETCH_SEMAPHORE = asyncio.Semaphore(3)
 
 _URL_RE     = re.compile(r"https?://\S+")

@@ -52,44 +52,26 @@ def _make_item(model: dict, label: str) -> NewsItem:
     )
 
 
-async def _fetch_trending(session: aiohttp.ClientSession, limit: int) -> list[NewsItem]:
+_MIN_LIKES = 50  # 이 미만은 개인 업로드 노이즈로 간주해 걸러냄
+
+
+async def fetch(limit: int = 20) -> list[NewsItem]:
+    """HuggingFace 급상승 모델만 수집한다 (신규 전체 업로드는 노이즈가 많아 제거)."""
     params = {"sort": "trendingScore", "direction": -1, "limit": limit}
-    async with session.get(_HF_API, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-        resp.raise_for_status()
-        models = await resp.json()
-
-    return [
-        _make_item(m, "급상승")
-        for m in models
-        if not _TARGET_PIPELINES or m.get("pipeline_tag") in _TARGET_PIPELINES
-    ]
-
-
-async def _fetch_newest(session: aiohttp.ClientSession, limit: int) -> list[NewsItem]:
-    params = {"sort": "lastModified", "direction": -1, "limit": limit}
-    async with session.get(_HF_API, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-        resp.raise_for_status()
-        models = await resp.json()
-
-    return [
-        _make_item(m, "신규")
-        for m in models
-        if m.get("pipeline_tag") in _TARGET_PIPELINES
-    ]
-
-
-async def fetch(limit: int = 15) -> list[NewsItem]:
-    """HuggingFace 급상승 + 신규 모델을 합쳐서 반환한다."""
     async with aiohttp.ClientSession() as session:
-        trending, newest = await asyncio.gather(
-            _fetch_trending(session, limit),
-            _fetch_newest(session, limit),
-        )
+        async with session.get(_HF_API, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            resp.raise_for_status()
+            models = await resp.json()
 
-    # 중복 URL 제거
-    seen: set[str] = set()
     result = []
-    for item in trending + newest:
+    seen: set[str] = set()
+    for m in models:
+        # 파이프라인 필터 + 최소 좋아요 수 필터
+        if m.get("pipeline_tag") not in _TARGET_PIPELINES:
+            continue
+        if (m.get("likes") or 0) < _MIN_LIKES:
+            continue
+        item = _make_item(m, "급상승")
         if item.url not in seen:
             seen.add(item.url)
             result.append(item)
