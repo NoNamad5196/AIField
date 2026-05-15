@@ -268,40 +268,32 @@ def _row_to_news_item(row: dict) -> NewsItem:
 
 
 def _format_briefing(items: list[NewsItem], now: datetime) -> str:
-    """Gemini 실패 시 fallback — 공식 3개 요약 + 커뮤 서술체."""
+    """Gemini 실패 시 fallback — 굵은 제목 + 한 줄 이유 + 커뮤 서술체."""
     date_str  = now.strftime("%Y-%m-%d")
     hf_items  = [it for it in items if "HuggingFace" in it.source]
     notable   = [it for it in items if "HuggingFace" not in it.source]
-    official  = sorted([it for it in notable if it.is_official],
-                       key=lambda x: x.singularity_impact, reverse=True)
-    community = [it for it in notable if not it.is_official]
+    # 영향도 + 긴급도 합산 순 정렬
+    notable.sort(key=lambda x: x.singularity_impact + x.urgency, reverse=True)
+    top     = notable[:5]
+    rest    = notable[5:]
 
     lines = [f"**[AIField 일일 브리핑] {date_str}**", ""]
 
-    # 공식 발표 — 영향도 높은 순 최대 3개
-    if official:
-        for it in official[:3]:
-            summary = (it.summary or "")[:120].strip()
-            line = f"**{it.title[:60]}** ({it.source})"
-            if summary:
-                line += f" — {summary}"
-            lines.append(line)
-        lines.append("")
+    # 주요 항목 — 굵은 제목 + 한 줄 이유
+    for it in top:
+        summary = (it.summary or "")[:100].strip()
+        reason = summary.split(".")[0] if summary else it.source
+        lines.append(f"**{it.title[:65]}** — {reason}")
+    lines.append("")
 
-    # 커뮤니티 — 문장체 서술
-    if community:
-        topics = []
-        for it in community[:4]:
-            s = (it.summary or "")[:80].strip()
-            topics.append(f"'{it.title[:40]}'" + (f"({s})" if s else ""))
-        comm_line = "오늘 커뮤에선 " + ", ".join(topics[:2]) + " 얘기가 있었어."
-        if len(topics) > 2:
-            comm_line += " " + ", ".join(topics[2:]) + " 같은 내용도 올라왔고."
-        lines.append(comm_line)
-        lines.append("")
-
+    # 나머지 커뮤 흐름 — 1~2문장
+    leftover = rest + [it for it in items if "HuggingFace" in it.source]
+    if rest:
+        titles = ", ".join(f"'{it.title[:35]}'" for it in rest[:3])
+        lines.append(f"오늘 커뮤에선 {titles} 얘기도 있었어.")
     if hf_items:
-        lines.append(f"HuggingFace엔 주목할 만한 모델 {len(hf_items)}건 올라왔어.")
+        lines.append(f"HuggingFace엔 주목할 모델 {len(hf_items)}건도 올라왔어.")
+    if rest or hf_items:
         lines.append("")
 
     lines.append("관리자, 너무 무리하지 말고 핵심만 먼저 보면 돼.")
