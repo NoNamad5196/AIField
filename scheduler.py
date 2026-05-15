@@ -167,10 +167,15 @@ class AIFieldScheduler:
             await self._post_briefing()
 
     async def _post_briefing(self):
-        # 오래된 미브리핑 항목 자동 정리 (5일 초과분)
+        # 오래된 미브리핑 항목 자동 정리 (5일 초과분 → briefed=1)
         cleaned = self._store.cleanup_old_unbriefed(days=5)
         if cleaned:
             print(f"[scheduler] 오래된 미브리핑 {cleaned}건 자동 정리")
+
+        # 30일 초과 항목 실제 삭제 (중복 방지용 30일치만 보존)
+        deleted = self._store.delete_old(keep_days=30)
+        if deleted:
+            print(f"[scheduler] 30일 초과 항목 {deleted}건 삭제")
 
         # 버퍼가 비어 있으면 DB 미브리핑 항목으로 보완
         if not self._briefing_buffer:

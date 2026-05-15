@@ -103,6 +103,20 @@ class NewsStore:
         self._conn.commit()
         return cur.rowcount
 
+    def delete_old(self, keep_days: int = 30) -> int:
+        """keep_days일보다 오래된 항목을 실제로 삭제한다.
+
+        중복 방지를 위해 최소 keep_days(기본 30일)는 보존.
+        """
+        from datetime import timedelta
+        cutoff_str = (datetime.now(timezone.utc) - timedelta(days=keep_days)).isoformat()
+        cur = self._conn.execute(
+            "DELETE FROM news WHERE created_at < ?",
+            (cutoff_str,),
+        )
+        self._conn.commit()
+        return cur.rowcount
+
     # ------------------------------------------------------------------
     # 읽기
     # ------------------------------------------------------------------
