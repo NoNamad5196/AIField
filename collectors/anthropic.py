@@ -39,7 +39,7 @@ def _clean_title(raw: str) -> str:
     return t.strip()[:180]
 
 
-async def fetch(limit: int = 15) -> list[NewsItem]:
+async def fetch(limit: int = 5) -> list[NewsItem]:
     """Anthropic 뉴스 페이지에서 최신 포스트를 수집한다."""
     try:
         async with aiohttp.ClientSession(headers=_HEADERS) as session:
