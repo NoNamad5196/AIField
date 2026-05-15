@@ -101,51 +101,61 @@ def verification_user_prompt(item: NewsItem) -> str:
 
 def briefing_user_prompt(items: list[NewsItem], date_str: str) -> str:
     """일일 브리핑 전체 텍스트 생성용."""
-    official = [it for it in items if it.is_official]
-    rumors = [it for it in items if not it.is_official]
+    # HuggingFace 신규 모델은 개별 모델명이 의미 없으므로 건수만 전달
+    hf_items  = [it for it in items if "HuggingFace" in it.source]
+    notable   = [it for it in items if "HuggingFace" not in it.source]
+    official  = [it for it in notable if it.is_official]
+    community = [it for it in notable if not it.is_official]
 
     parts = [
         f"{date_str} AIField 일일 브리핑을 펠리카 말투로 작성해줘.",
         "",
-        f"오늘 수집된 항목 총 {len(items)}개.",
-        "",
+        "오늘 수집된 항목:",
     ]
 
     if official:
         parts.append(f"【공식 발표 {len(official)}건】")
-        for i, it in enumerate(official[:5], 1):
-            summary_short = (it.summary or "")[:80]
-            parts.append(f"{i}. {it.title}")
+        for it in official[:5]:
+            summary_short = (it.summary or "")[:100]
+            parts.append(f"- {it.title}")
             if summary_short:
-                parts.append(f"   요약: {summary_short}")
-            parts.append(f"   출처: {it.source} | 영향도: {it.singularity_impact}/5 | Level {it.alert_level}")
+                parts.append(f"  {summary_short}")
+            parts.append(f"  (출처: {it.source} | 영향도: {it.singularity_impact}/5)")
         parts.append("")
 
-    if rumors:
-        parts.append(f"【루머/커뮤니티 {len(rumors)}건】")
-        for i, it in enumerate(rumors[:5], 1):
-            summary_short = (it.summary or "")[:80]
-            parts.append(f"{i}. {it.title}")
+    if community:
+        parts.append(f"【커뮤니티 / 루머 {len(community)}건 — 오늘 갤에서 오간 주요 내용】")
+        for it in community[:6]:
+            summary_short = (it.summary or "")[:120]
+            parts.append(f"- {it.title}")
             if summary_short:
-                parts.append(f"   요약: {summary_short}")
-            parts.append(f"   출처: {it.source} | 신뢰도: {it.reliability}/5")
+                parts.append(f"  {summary_short}")
+        parts.append("")
+
+    if hf_items:
+        parts.append(f"【HuggingFace 신규 모델】 {len(hf_items)}건 (세부 모델명 언급 불필요)")
+        parts.append("")
+
+    if not notable and not hf_items:
+        parts.append("(수집된 항목 없음)")
         parts.append("")
 
     parts += [
-        "요구사항:",
-        "- Discord Markdown 사용 (**섹션 제목**, > 인용 등)",
-        "- 전체 20줄 이내",
+        "작성 방식 (엄수):",
+        "- 글머리 기호(-), 번호 나열, 섹션 헤더 절대 사용 금지",
+        "- 2~3개 문단, 각 문단 2~4문장. 문단 구분 외 고정 구조 없음",
+        "- 공식 발표, 커뮤니티 얘기, 트렌드를 그날 내용에 맞게 자연스럽게 섞어서 써줘",
+        "  - 공식 발표가 중요하면 그걸 중심으로, 커뮤 얘기가 풍부하면 그걸 길게",
+        "  - 공식 발표가 커뮤 반응과 연결되면 같은 문단에서 이어 써도 됨",
+        "  - '오늘 커뮤에선...' 같은 커뮤니티 내용은 반드시 어느 문단에선가 포함",
+        "  - 억지로 문단을 나누지 말고, 흐름이 자연스러우면 길게 써도 됨",
+        "- HuggingFace 개별 모델명(user/model 형식) 절대 언급 금지 — '신규 모델 X건' 식으로만",
+        "- 전체 18줄 이내",
+        "- Discord Markdown 사용 가능 (**굵게** 등)",
         "- 펠리카 말투: 차분하고 정확한 반말, 관리자와 가까운 동료처럼",
         "- 딱딱한 비서체, 과장 선동 절대 금지",
-        "",
-        "브리핑 구성 방식 (단순 나열 금지):",
-        "1. 수집된 항목 중 가장 중요한 3건만 선별",
-        "   - 각 항목마다: 제목 + '왜 지금 중요한가' 분석 2줄 (단순 요약 아님)",
-        "   - 영향도/신뢰도 높은 순으로 선별",
-        "2. 나머지 항목은 '그 외' 섹션에 한 줄씩 간략히",
-        "3. 마지막에 오늘 AI 흐름 트렌드 1줄 요약",
-        '4. 맨 끝: "관리자, 너무 무리하지 말고 핵심만 먼저 보면 돼."',
-        '5. 시그니처: "*AI는 또 한 걸음 앞으로 나아갔어.*"',
+        '- 마지막에서 두 번째 줄: "관리자, 너무 무리하지 말고 핵심만 먼저 보면 돼."',
+        '- 맨 마지막 줄: "*AI는 또 한 걸음 앞으로 나아갔어.*"',
     ]
 
     return "\n".join(parts)
