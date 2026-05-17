@@ -1,16 +1,16 @@
 """
-Gemini 2.0 Flash 비동기 래퍼.
+Gemini 2.5 Flash 비동기 래퍼.
 
 진천우(qianyu)와 펠리카(perlica)가 각자 독립된 클라이언트/세마포어를 사용한다.
 키가 없으면 즉시 fallback을 반환하므로 키 없이도 봇이 동작한다.
-Semaphore(1) + sleep(4.1s)로 무료 티어 15 RPM 제한을 봇별로 준수한다.
+Semaphore(1) + sleep(7s)로 무료 티어 10 RPM 제한을 봇별로 준수한다.
 """
 
 import asyncio
 import config
 
 _MODEL = "gemini-2.5-flash"
-_REQ_INTERVAL = 5.0  # 60 / 12 RPM = 5초, 여유분 포함
+_REQ_INTERVAL = 7.0  # 60 / 10 RPM = 6초, 여유분 포함 (2.5-flash free tier: 10 RPM)
 
 # 봇별 클라이언트 & 세마포어
 _clients:    dict[str, object] = {}
@@ -60,7 +60,8 @@ async def generate(
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         temperature=0.8,
-                        max_output_tokens=600,
+                        max_output_tokens=2000,
+                        thinking_config=types.ThinkingConfig(thinking_budget=512),
                     ),
                     contents=user_prompt,
                 )
