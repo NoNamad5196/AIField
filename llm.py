@@ -10,7 +10,7 @@ import asyncio
 import config
 
 _MODEL = "gemini-2.0-flash-lite"
-_REQ_INTERVAL = 4.1  # 60 / 15 RPM = 4초, 여유분 포함
+_REQ_INTERVAL = 5.0  # 60 / 12 RPM = 5초, 여유분 포함
 
 # 봇별 클라이언트 & 세마포어
 _clients:    dict[str, object] = {}
@@ -60,7 +60,7 @@ async def generate(
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         temperature=0.8,
-                        max_output_tokens=800,
+                        max_output_tokens=600,
                     ),
                     contents=user_prompt,
                 )
@@ -73,7 +73,7 @@ async def generate(
                 is_rate_limit = "429" in err_str or "quota" in err_str.lower()
 
                 if is_rate_limit and attempt < 2:
-                    wait = 12.0 + attempt * 8.0  # 1차: 12초, 2차: 20초
+                    wait = 65.0 + attempt * 60.0  # 1차: 65초, 2차: 125초 (RPM 윈도우 완전 초기화)
                     print(f"[llm:{bot}] 429 rate limit — {wait:.0f}초 후 재시도 ({attempt + 1}/2)")
                     await asyncio.sleep(wait)
                     continue

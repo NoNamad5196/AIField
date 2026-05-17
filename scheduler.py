@@ -28,9 +28,10 @@ KST = timezone(timedelta(hours=9))
 SCAN_INTERVAL_SEC = 30 * 60      # 30분마다 수집
 BRIEFING_HOURS_KST = (9, 21)     # 09:00, 21:00 KST
 BRIEFING_MAX_ITEMS = 10
-IMMEDIATE_ALERT_MIN_LEVEL = 4    # Level 4 이상 즉시 알림 (공식)
-RUMOR_IMMEDIATE_MIN_LEVEL = 3    # Level 3 이상 즉시 알림 (루머/커뮤니티)
-RUMOR_IMMEDIATE_MAX_PER_CYCLE = 2  # 쿨타임당 진천우 즉시 포스팅 최대 건수
+IMMEDIATE_ALERT_MIN_LEVEL = 4      # Level 4 이상 즉시 알림 (공식)
+IMMEDIATE_MAX_PER_CYCLE   = 3      # 사이클당 공식 즉시 알림 최대 건수
+RUMOR_IMMEDIATE_MIN_LEVEL = 3      # Level 3 이상 즉시 알림 (루머/커뮤니티)
+RUMOR_IMMEDIATE_MAX_PER_CYCLE = 2  # 사이클당 진천우 즉시 포스팅 최대 건수
 
 
 class AIFieldScheduler:
@@ -75,7 +76,18 @@ class AIFieldScheduler:
         print(f"[scheduler] {len(items)}개 수집 → 신규 {len(new_items)}개 "
               f"(DB 누계: {stats['total']}건, 미브리핑: {stats['unbriefed']}건)")
 
-        immediate = [it for it in new_items if it.alert_level >= IMMEDIATE_ALERT_MIN_LEVEL]
+        # Level 4+ 공식 → 영향도+긴급도 순으로 사이클당 최대 3건만 즉시 알림
+        immediate_candidates = [it for it in new_items if it.alert_level >= IMMEDIATE_ALERT_MIN_LEVEL]
+        immediate_candidates.sort(
+            key=lambda x: (x.urgency + x.singularity_impact), reverse=True
+        )
+        immediate = immediate_candidates[:IMMEDIATE_MAX_PER_CYCLE]
+        # 알림 안 된 나머지는 브리핑 버퍼로
+        immediate_urls = {it.url for it in immediate}
+        overflow = [
+            it for it in immediate_candidates if it.url not in immediate_urls
+        ]
+        self._briefing_buffer.extend(overflow)
 
         # Level 3 루머/커뮤니티 → 진천우 즉시 알림 (사이클당 최대 2건, 긴급도+영향도 순)
         rumor_candidates = [
