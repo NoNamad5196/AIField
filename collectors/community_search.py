@@ -1,203 +1,66 @@
 """
-공식 속보에 대한 Hacker News + Reddit 커뮤니티 반응 수집기.
+공식 속보 커뮤니티 반응 수집 + 루머 검증 검색.
 
-fetch_reactions(item) → str
-  속보 제목을 키워드로 HN과 Reddit을 동시 검색해
-  community_summary 필드에 넣을 텍스트를 반환한다.
-  결과가 없거나 오류 시 빈 문자열을 반환한다.
+Gemini 2.5-flash의 내장 Google Search 툴을 사용한다.
+별도 API 키 불필요 — 기존 Gemini 키 그대로 사용.
 """
 
 import asyncio
-import re
-
-import aiohttp
+import config
 
 from scorer import NewsItem
 
-_HN_SEARCH_URL = "https://hn.algolia.com/api/v1/search"
-_REDDIT_SEARCH_URL = (
-    "https://www.reddit.com"
-    "/r/MachineLearning+LocalLLaMA+singularity/search.json"
-)
-_REDDIT_HEADERS = {
-    "User-Agent": "AIField-Bot/1.0 (AI news aggregator; contact: bot@aifield.local)"
-}
-_TIMEOUT = aiohttp.ClientTimeout(total=8)
-
-
-# ---------------------------------------------------------------------------
-# 키워드 추출
-# ---------------------------------------------------------------------------
-
-def _extract_keyword(title: str) -> str:
-    """
-    제목에서 검색 키워드를 추출한다.
-    - 영어 단어가 2개 이상이면 앞 3단어를 사용 (모델명·회사명 위주)
-    - 영어 단어가 1개 이하면 제목 전체를 사용
-    - 최대 60자 제한
-    """
-    english_words = re.findall(r"[A-Za-z][A-Za-z0-9\-\.]+", title)
-    if len(english_words) >= 2:
-        keyword = " ".join(english_words[:3])
-    else:
-        keyword = title
-    return keyword[:60].strip()
-
-
-# ---------------------------------------------------------------------------
-# HN 검색
-# ---------------------------------------------------------------------------
-
-async def _fetch_hn(session: aiohttp.ClientSession, keyword: str) -> list[dict]:
-    """HN Algolia search API로 관련 스토리 최대 5개를 반환한다."""
-    try:
-        params = {"query": keyword, "tags": "story", "hitsPerPage": 5}
-        async with session.get(
-            _HN_SEARCH_URL, params=params, timeout=_TIMEOUT
-        ) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
-        return [
-            {
-                "title": h.get("title", ""),
-                "points": h.get("points") or 0,
-                "num_comments": h.get("num_comments") or 0,
-            }
-            for h in data.get("hits", [])
-            if h.get("title")
-        ]
-    except Exception as e:
-        print(f"[community_search] HN 오류: {e}")
-        return []
-
-
-# ---------------------------------------------------------------------------
-# Reddit 검색
-# ---------------------------------------------------------------------------
-
-async def _fetch_reddit(session: aiohttp.ClientSession, keyword: str) -> list[dict]:
-    """Reddit public JSON API로 관련 포스트 최대 5개를 반환한다. 인증 불필요."""
-    try:
-        params = {
-            "q": keyword,
-            "sort": "relevance",
-            "limit": 5,
-            "restrict_sr": 1,
-            "t": "week",
-        }
-        async with session.get(
-            _REDDIT_SEARCH_URL,
-            params=params,
-            headers=_REDDIT_HEADERS,
-            timeout=_TIMEOUT,
-        ) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
-        children = data.get("data", {}).get("children", [])
-        return [
-            {
-                "title": c["data"].get("title", ""),
-                "score": c["data"].get("score") or 0,
-                "num_comments": c["data"].get("num_comments") or 0,
-                "subreddit": c["data"].get("subreddit", ""),
-            }
-            for c in children
-            if c.get("data", {}).get("title")
-        ]
-    except Exception as e:
-        print(f"[community_search] Reddit 오류: {e}")
-        return []
-
-
-# ---------------------------------------------------------------------------
-# 결과 포맷
-# ---------------------------------------------------------------------------
-
-def _format_reactions(hn_hits: list[dict], reddit_hits: list[dict]) -> str:
-    """HN + Reddit 결과를 Gemini 프롬프트용 텍스트로 포맷한다."""
-    lines = []
-
-    if hn_hits:
-        lines.append("【Hacker News 반응】")
-        for h in hn_hits[:3]:
-            lines.append(
-                f"- {h['title']} "
-                f"(포인트: {h['points']}, 댓글: {h['num_comments']})"
-            )
-
-    if reddit_hits:
-        lines.append("【Reddit 반응】")
-        for r in reddit_hits[:3]:
-            lines.append(
-                f"- [{r['subreddit']}] {r['title']} "
-                f"(투표: {r['score']}, 댓글: {r['num_comments']})"
-            )
-
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# 공개 API
-# ---------------------------------------------------------------------------
 
 async def fetch_reactions(item: NewsItem) -> str:
     """
-    공식 속보의 제목을 기준으로 HN + Reddit 커뮤니티 반응을 수집한다.
-    결과가 없거나 오류 발생 시 빈 문자열("")을 반환한다.
+    공식 속보에 대한 커뮤니티 반응을 Google Search로 수집한다.
+    진천우 스레드 답글용 텍스트를 반환한다.
+    결과 없거나 오류 시 빈 문자열 반환.
     """
-    keyword = _extract_keyword(item.title)
-    if not keyword:
-        return ""
-
-    async with aiohttp.ClientSession() as session:
-        hn_hits, reddit_hits = await asyncio.gather(
-            _fetch_hn(session, keyword),
-            _fetch_reddit(session, keyword),
-        )
-
-    if not hn_hits and not reddit_hits:
-        print(f"[community_search] 반응 없음 — keyword={keyword!r}")
-        return ""
-
-    result = _format_reactions(hn_hits, reddit_hits)
-    print(
-        f"[community_search] 수집 완료 — "
-        f"HN {len(hn_hits)}건, Reddit {len(reddit_hits)}건 (keyword={keyword!r})"
+    return await _search(
+        api_key=config.GEMINI_API_KEY_QIANYU,
+        query=f"{item.title} AI community reaction developer response",
+        task="이 AI 뉴스에 대한 개발자/AI 커뮤니티(Reddit, HN, Twitter 등)의 반응을 "
+             "한국어로 2~3줄로 요약해줘. 반응이 없으면 빈 문자열만 반환해.",
     )
-    return result
 
 
 async def search_for_verification(item: NewsItem) -> str:
     """
-    루머/커뮤니티 글에 대한 펠리카 검증용 — HN에서 관련 소식을 검색한다.
-    HN 검색 결과와 신뢰도 힌트를 텍스트로 반환한다.
-    결과 없으면 빈 문자열 반환.
+    루머/커뮤니티 글에 대한 펠리카 검증용 — Google Search로 관련 정보를 찾는다.
+    검증 컨텍스트 텍스트를 반환한다. 결과 없으면 빈 문자열 반환.
     """
-    keyword = _extract_keyword(item.title)
-    if not keyword:
+    return await _search(
+        api_key=config.GEMINI_API_KEY_PERLICA,
+        query=f"{item.title} {item.source}",
+        task="이 내용이 사실인지 확인할 수 있는 공식 출처나 관련 뉴스를 찾아서 "
+             "한국어로 2~3줄로 정리해줘. 관련 정보가 없으면 빈 문자열만 반환해.",
+    )
+
+
+async def _search(api_key: str | None, query: str, task: str) -> str:
+    """Gemini Google Search 툴로 검색하고 결과를 반환한다."""
+    if not api_key:
         return ""
+    try:
+        from google import genai
+        from google.genai import types
 
-    async with aiohttp.ClientSession() as session:
-        hn_hits = await _fetch_hn(session, keyword)
-
-    if not hn_hits:
-        print(f"[community_search] 검증 검색 결과 없음 — keyword={keyword!r}")
-        return "HN 검색 결과 없음 — 아직 해외 커뮤니티에서 다루지 않은 소식."
-
-    lines = ["【HN 검색 결과】"]
-    for h in hn_hits[:3]:
-        lines.append(
-            f"- {h['title']} (포인트: {h['points']}, 댓글: {h['num_comments']})"
+        client = genai.Client(api_key=api_key)
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                max_output_tokens=400,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+            contents=f"다음 주제로 검색해줘: {query}\n\n{task}",
         )
-
-    max_points = max(h["points"] for h in hn_hits)
-    if max_points >= 300:
-        lines.append("→ HN 반응 매우 활발 — 공식 발표이거나 높은 신뢰도 가능성 있음.")
-    elif max_points >= 50:
-        lines.append("→ HN에서 일부 반응 있음 — 추가 확인 권장.")
-    else:
-        lines.append("→ HN 반응 미약 — 공식 확인 필요, 루머 가능성 높음.")
-
-    result = "\n".join(lines)
-    print(f"[community_search] 검증 검색 완료 — HN {len(hn_hits)}건, 최고 {max_points}pt")
-    return result
+        text = (response.text or "").strip()
+        if text and len(text) > 10:
+            print(f"[community_search] 검색 완료 — {query[:40]!r}")
+            return text
+        return ""
+    except Exception as e:
+        print(f"[community_search] 검색 실패: {e}")
+        return ""
