@@ -158,10 +158,11 @@ def _format_breaking_news(item: NewsItem) -> str:
 
 def _format_verification(item: NewsItem) -> str:
     classification = "공식 발표" if item.is_official else "루머로 분류할게. 즉시 알림은 보류하고 추적하자."
-    search_note = f"\n{item.verification_context}" if item.verification_context else ""
+    comments_note = f"\n갤러리 댓글:\n{item.raw_comments}" if item.raw_comments else ""
+    search_note = f"\n검증 서칭:\n{item.verification_context}" if item.verification_context else ""
     return (
         f"관리자, 확인했어.\n\n"
-        f"**{item.title}**{search_note}\n\n"
+        f"**{item.title}**{comments_note}{search_note}\n\n"
         f"출처: {item.source} | 신뢰 {item.reliability} | 긴급 {item.urgency}\n"
         f"최종 판단: {classification}"
     )

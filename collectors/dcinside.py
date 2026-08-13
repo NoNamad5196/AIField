@@ -8,12 +8,15 @@ https://gall.dcinside.com/mgallery/board/lists/?id=thesingularity
 """
 
 import asyncio
+import html as _html
 import re
 import aiohttp
 from bs4 import BeautifulSoup
 from scorer import NewsItem
 
+_GALL_ID = "thesingularity"
 _GALL_URL = "https://gall.dcinside.com/mgallery/board/lists/?id=thesingularity"
+_COMMENT_URL = "https://gall.dcinside.com/board/comment/"
 _POST_BASE = "https://gall.dcinside.com"
 _HEADERS = {
     "User-Agent": (
@@ -36,6 +39,12 @@ _YOUTUBE_RE = re.compile(
 )
 # iframe src 에서 유튜브 video ID 추출용 (protocol-relative URL 포함)
 _YT_SRC_RE  = re.compile(r"(?:https?:)?//(?:www\.)?youtube(?:-nocookie)?\.com/embed/([\w-]{11})")
+
+_ESNO_RE    = re.compile(r"""id=["']e_s_n_o["'][^>]*value=["']([^"']+)["']""")
+_POST_NO_RE = re.compile(r"[?&]no=(\d+)")
+_TAG_RE     = re.compile(r"<[^>]+>")
+# "댓글돌이": 갤러리 사이트 기능이 자동으로 남기는 무관한 뉴스 헤드라인 티커 — 실제 반응 아님
+_BOT_COMMENTERS = {"댓글돌이"}
 
 
 def _clean_content(raw: str) -> str:
@@ -101,6 +110,81 @@ async def _fetch_post_content(session: aiohttp.ClientSession, url: str) -> str:
             body = (prefix + body).strip() if body else prefix.strip()
 
     return body[:_CONTENT_LIMIT] if len(body) > 20 else ""
+
+
+def _clean_comment_text(memo: str) -> str:
+    """댓글 memo 필드 — <br> 개행 처리 + 태그 제거 + HTML 엔티티 언스케이프."""
+    text = re.sub(r"<br\s*/?>", " ", memo, flags=re.IGNORECASE)
+    text = _TAG_RE.sub("", text)
+    text = _html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+async def fetch_comments(post_url: str, limit: int = 8) -> str:
+    """
+    게시물 URL에서 실제 댓글을 가져와 '닉네임: 내용' 형식 텍스트로 반환한다.
+    DC인사이드 비공개 댓글 API(/board/comment/)를 사용 — 페이지에서 e_s_n_o 토큰을
+    새로 받아와야 하므로 매번 게시물 페이지를 먼저 fetch한다.
+    실패하거나 댓글이 없으면 빈 문자열 반환.
+    """
+    m = _POST_NO_RE.search(post_url)
+    if not m:
+        return ""
+    post_no = m.group(1)
+
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(headers=_HEADERS) as session:
+            async with session.get(post_url, timeout=timeout) as resp:
+                if resp.status != 200:
+                    return ""
+                page_html = await resp.text(encoding="utf-8", errors="replace")
+
+            esno_m = _ESNO_RE.search(page_html)
+            if not esno_m:
+                return ""
+            e_s_n_o = esno_m.group(1)
+
+            data = {
+                "id": _GALL_ID, "no": post_no,
+                "cmt_id": _GALL_ID, "cmt_no": post_no,
+                "focus_cno": "", "focus_pno": "-1",
+                "e_s_n_o": e_s_n_o,
+                "comment_page": "1", "sort": "", "prevCnt": "0",
+                "board_type": "", "_GALLTYPE_": "M",
+            }
+            headers = {
+                **_HEADERS,
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": post_url,
+            }
+            async with session.post(
+                _COMMENT_URL, data=data, headers=headers, timeout=timeout
+            ) as resp:
+                if resp.status != 200:
+                    return ""
+                payload = await resp.json(content_type=None)
+    except Exception as e:
+        print(f"[dcinside] 댓글 수집 실패: {e}")
+        return ""
+
+    comments = payload.get("comments") or []
+    lines = []
+    for c in comments:
+        if c.get("del_yn") == "Y" or str(c.get("is_delete", "0")) != "0":
+            continue
+        name = (c.get("name") or "익명").strip()
+        if name in _BOT_COMMENTERS:
+            continue
+        memo = _clean_comment_text(c.get("memo") or "")
+        if not memo or "차단 관련 문의는" in memo:
+            continue
+        prefix = "  ↳ " if c.get("depth") else "- "
+        lines.append(f"{prefix}{name}: {memo}")
+        if len(lines) >= limit:
+            break
+
+    return "\n".join(lines)
 
 
 async def fetch(limit: int = 30) -> list[NewsItem]:

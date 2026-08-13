@@ -64,6 +64,11 @@ def breaking_news_user_prompt(item: NewsItem) -> str:
 def verification_user_prompt(item: NewsItem) -> str:
     """루머 스레드에 달 Perlica 검증 결과 메시지 생성용."""
     official_str = "예" if item.is_official else "아니오"
+    comments_section = (
+        f"\n갤러리에 실제로 달린 댓글 (닉네임: 내용):\n{item.raw_comments}"
+        if item.raw_comments
+        else "\n갤러리 댓글: 없음 (댓글이 없거나 아직 안 달림)"
+    )
     search_section = (
         f"\n검증 서칭 결과:\n{item.verification_context}"
         if item.verification_context
@@ -77,6 +82,7 @@ def verification_user_prompt(item: NewsItem) -> str:
         f"공식 여부: {official_str}",
         f"신뢰도: {item.reliability}/5 | 긴급도: {item.urgency}/5",
         f"요약: {item.summary or '요약 없음'}",
+        comments_section,
         search_section,
         "",
         "요구사항:",
@@ -98,6 +104,8 @@ def verification_user_prompt(item: NewsItem) -> str:
         "",
         "- 관리자가 바로 이해할 수 있게, 검증 서칭 결과에 구체적 사실(수치/출처명/날짜 등)이 있으면 반드시 그대로 녹여서 언급 — 뭉뚱그리지 말 것",
         "- 검증 서칭 결과가 '없음'이면 그 사실을 숨기지 말고 '아직 확인된 후속 정보는 없어' 식으로 명확히 말할 것",
+        "- 갤러리 댓글이 있으면 반드시 실제로 읽고 반영할 것 — '댓글 반응은 긍정적/부정적이었어' 식으로 뭉뚱그리지 말고,",
+        "  실제로 몇 명이 어떤 의견을 냈는지(동의/반박/추가정보 등) 구체적으로 짚어줄 것. 없으면 '아직 댓글 반응은 없어' 라고 명확히 말할 것",
         "- 같은 패턴 반복 금지. 매번 내용에 맞게 다르게 반응할 것",
         "- 딱딱한 비서체, 과장 선동 절대 금지",
     ])

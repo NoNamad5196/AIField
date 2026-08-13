@@ -23,6 +23,7 @@ class NewsItem:
     is_rumor: bool = True
     community_summary: str = ""
     verification_context: str = ""  # 펠리카 검증 전 서칭 결과
+    raw_comments: str = ""          # 원본 게시물에 실제로 달린 댓글 (DCInside 등)
 
     # 점수 (0이면 score()에서 규칙 기반으로 자동 추론)
     singularity_impact: int = 0  # 1~5: AI 생태계 방향에 미치는 영향

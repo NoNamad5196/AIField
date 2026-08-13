@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 
 from collectors import fetch_all
 from collectors.community_search import fetch_reactions, search_for_verification
+from collectors.dcinside import fetch_comments as fetch_dc_comments
 from scorer import NewsItem
 from bot_qianyu import QianyuBot
 from bot_perlica import PerlicaBot
@@ -148,10 +149,24 @@ class AIFieldScheduler:
             print(f"[scheduler] 즉시 알림 실패: {e}")
 
     async def _delayed_verification(self, thread_id: int, item: NewsItem):
-        """진천우 루머 게시 후 일정 시간 대기 → 반응/후속 정보 검색 → 펠리카 검증 답글."""
+        """진천우 루머 게시 후 일정 시간 대기 → 실제 댓글/후속 정보 수집 → 펠리카 검증 답글."""
         delay_sec = RUMOR_VERIFICATION_DELAY_MIN * 60
         await asyncio.sleep(delay_sec)
         print(f"[scheduler] 펠리카 검증 시작 — {item.title[:40]}")
+
+        is_dcinside = "dcinside" in item.source.lower() or "특이점" in item.source
+        if is_dcinside and item.url:
+            try:
+                item.raw_comments = await asyncio.wait_for(
+                    fetch_dc_comments(item.url), timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                print("[scheduler] 댓글 수집 타임아웃")
+                item.raw_comments = ""
+            except Exception as e:
+                print(f"[scheduler] 댓글 수집 실패: {e}")
+                item.raw_comments = ""
+
         try:
             item.verification_context = await asyncio.wait_for(
                 search_for_verification(item), timeout=20.0
