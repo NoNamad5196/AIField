@@ -38,10 +38,13 @@ async def generate(
     fallback: str = "",
     *,
     bot: str = "perlica",
+    tools: list | None = None,
+    temperature: float = 0.8,
 ) -> str:
     """Gemini로 텍스트를 생성한다. 키 없음/오류 시 fallback을 반환한다.
 
     bot: "qianyu" 또는 "perlica" — 각자 독립된 키/세마포어/쿼터 사용.
+    tools: 예) [types.Tool(google_search=types.GoogleSearch())] — 검색 등 내장 툴 사용 시.
     429 rate limit 시 최대 2회 재시도 (대기 12초 → 20초).
     그 외 오류는 즉시 fallback 반환.
     """
@@ -59,9 +62,10 @@ async def generate(
                     model=_MODEL,
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
-                        temperature=0.8,
+                        temperature=temperature,
                         max_output_tokens=2000,
                         thinking_config=types.ThinkingConfig(thinking_budget=512),
+                        tools=tools,
                     ),
                     contents=user_prompt,
                 )

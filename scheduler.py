@@ -33,6 +33,7 @@ IMMEDIATE_MAX_PER_CYCLE   = 3      # 사이클당 공식 즉시 알림 최대 �
 RUMOR_IMMEDIATE_MIN_LEVEL = 3      # Level 3 이상 즉시 알림 (루머/커뮤니티)
 RUMOR_IMMEDIATE_MAX_PER_CYCLE = 2  # 사이클당 진천우 즉시 포스팅 최대 건수
 COMMUNITY_REACTION_DELAY_MIN = 45  # 공식 속보 후 진천우 커뮤 반응 답글 지연 (분)
+RUMOR_VERIFICATION_DELAY_MIN = 60  # 루머 게시 후 펠리카 검증 답글 지연 (분) — 반응 쌓일 시간 확보
 
 
 class AIFieldScheduler:
@@ -138,23 +139,30 @@ class AIFieldScheduler:
                 print(f"[scheduler] 진천우 커뮤 반응 {COMMUNITY_REACTION_DELAY_MIN}분 후 예약됨")
             else:
                 thread_id = await self.qianyu.post_rumor(item)
-                # 펠리카 검증 전 HN 서칭 (최대 12초) + 최소 5초 대기
-                search_start = asyncio.get_event_loop().time()
-                try:
-                    item.verification_context = await asyncio.wait_for(
-                        search_for_verification(item), timeout=12.0
-                    )
-                except asyncio.TimeoutError:
-                    print("[scheduler] 검증 서칭 타임아웃")
-                    item.verification_context = ""
-                # 서칭이 빨리 끝나도 최소 5초는 대기 (자연스러운 "읽고 생각하는" 딜레이)
-                elapsed = asyncio.get_event_loop().time() - search_start
-                remaining = max(0.0, 5.0 - elapsed)
-                if remaining > 0:
-                    await asyncio.sleep(remaining)
-                await self.perlica.post_verification(thread_id, item)
+                # 펠리카 검증은 60분 후 백그라운드로 처리 (반응/후속 정보 쌓일 시간)
+                asyncio.create_task(
+                    self._delayed_verification(thread_id, item)
+                )
+                print(f"[scheduler] 펠리카 검증 {RUMOR_VERIFICATION_DELAY_MIN}분 후 예약됨")
         except Exception as e:
             print(f"[scheduler] 즉시 알림 실패: {e}")
+
+    async def _delayed_verification(self, thread_id: int, item: NewsItem):
+        """진천우 루머 게시 후 일정 시간 대기 → 반응/후속 정보 검색 → 펠리카 검증 답글."""
+        delay_sec = RUMOR_VERIFICATION_DELAY_MIN * 60
+        await asyncio.sleep(delay_sec)
+        print(f"[scheduler] 펠리카 검증 시작 — {item.title[:40]}")
+        try:
+            item.verification_context = await asyncio.wait_for(
+                search_for_verification(item), timeout=20.0
+            )
+        except asyncio.TimeoutError:
+            print("[scheduler] 검증 서칭 타임아웃")
+            item.verification_context = ""
+        try:
+            await self.perlica.post_verification(thread_id, item)
+        except Exception as e:
+            print(f"[scheduler] 펠리카 지연 검증 실패: {e}")
 
     async def _delayed_community_reaction(self, thread_id: int, item: NewsItem):
         """공식 속보 후 일정 시간 대기 → 갤 반응 수집 → 진천우 답글."""
