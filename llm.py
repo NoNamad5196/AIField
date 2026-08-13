@@ -76,14 +76,19 @@ async def generate(
             except Exception as e:
                 err_str = str(e)
                 is_rate_limit = "429" in err_str or "quota" in err_str.lower()
+                # 일일 쿼터(PerDay) 초과는 몇 분 기다려도 안 풀리므로 재시도 없이 바로 fallback
+                is_daily_quota = "PerDay" in err_str
 
-                if is_rate_limit and attempt < 2:
+                if is_rate_limit and not is_daily_quota and attempt < 2:
                     wait = 65.0 + attempt * 60.0  # 1차: 65초, 2차: 125초 (RPM 윈도우 완전 초기화)
                     print(f"[llm:{bot}] 429 rate limit — {wait:.0f}초 후 재시도 ({attempt + 1}/2)")
                     await asyncio.sleep(wait)
                     continue
 
-                print(f"[llm:{bot}] 오류 (attempt {attempt + 1}): {e}")
+                if is_daily_quota:
+                    print(f"[llm:{bot}] 일일 쿼터 초과 — 재시도 없이 fallback 사용")
+                else:
+                    print(f"[llm:{bot}] 오류 (attempt {attempt + 1}): {e}")
                 await asyncio.sleep(_REQ_INTERVAL)
                 return fallback
 
