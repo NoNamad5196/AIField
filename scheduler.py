@@ -16,7 +16,6 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 
 from collectors import fetch_all
-from collectors.community_search import fetch_reactions, search_for_verification
 from collectors.dcinside import fetch_comments as fetch_dc_comments
 from scorer import NewsItem
 from bot_qianyu import QianyuBot
@@ -149,7 +148,11 @@ class AIFieldScheduler:
             print(f"[scheduler] 즉시 알림 실패: {e}")
 
     async def _delayed_verification(self, thread_id: int, item: NewsItem):
-        """진천우 루머 게시 후 일정 시간 대기 → 실제 댓글/후속 정보 수집 → 펠리카 검증 답글."""
+        """진천우 루머 게시 후 일정 시간 대기 → 실제 댓글 수집 → 펠리카 검증 답글.
+
+        외부 사실 확인은 별도로 서칭하지 않고, 펠리카의 답글 생성 호출 자체에
+        구글 검색 툴을 붙여서 한 번의 Gemini 호출로 처리한다 (무료 티어 일일 쿼터 절약).
+        """
         delay_sec = RUMOR_VERIFICATION_DELAY_MIN * 60
         await asyncio.sleep(delay_sec)
         print(f"[scheduler] 펠리카 검증 시작 — {item.title[:40]}")
@@ -168,34 +171,17 @@ class AIFieldScheduler:
                 item.raw_comments = ""
 
         try:
-            item.verification_context = await asyncio.wait_for(
-                search_for_verification(item), timeout=20.0
-            )
-        except asyncio.TimeoutError:
-            print("[scheduler] 검증 서칭 타임아웃")
-            item.verification_context = ""
-        try:
             await self.perlica.post_verification(thread_id, item)
         except Exception as e:
             print(f"[scheduler] 펠리카 지연 검증 실패: {e}")
 
     async def _delayed_community_reaction(self, thread_id: int, item: NewsItem):
-        """공식 속보 후 일정 시간 대기 → 갤 반응 수집 → 진천우 답글."""
+        """공식 속보 후 일정 시간 대기 → 진천우 답글 (검색 툴은 답글 생성 호출에 직접 연결됨)."""
         delay_sec = COMMUNITY_REACTION_DELAY_MIN * 60
         await asyncio.sleep(delay_sec)
-        print(f"[scheduler] 진천우 커뮤 반응 수집 시작 — {item.title[:40]}")
+        print(f"[scheduler] 진천우 커뮤 반응 시작 — {item.title[:40]}")
         try:
-            try:
-                item.community_summary = await asyncio.wait_for(
-                    fetch_reactions(item), timeout=20.0
-                )
-            except asyncio.TimeoutError:
-                print("[scheduler] 커뮤 반응 서칭 타임아웃")
-                item.community_summary = ""
-            if item.community_summary:
-                await self.qianyu.post_community_reaction(thread_id, item)
-            else:
-                print("[scheduler] 커뮤니티 반응 없음 — 진천우 답글 생략")
+            await self.qianyu.post_community_reaction(thread_id, item)
         except Exception as e:
             print(f"[scheduler] 진천우 지연 답글 실패: {e}")
 

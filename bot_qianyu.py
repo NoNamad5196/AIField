@@ -73,12 +73,15 @@ class QianyuBot(discord.Client):
         return message.id
 
     async def post_community_reaction(self, message_id: int, item: NewsItem):
-        """펠리카 속보에 답글로 커뮤니티 반응 달기."""
+        """펠리카 속보에 답글로 커뮤니티 반응 달기. 필요하면 모델이 직접 구글 검색해서 반응을 찾는다."""
+        from google.genai import types
+
         content = await generate(
             QIANYU_SYSTEM_PROMPT,
             community_reaction_user_prompt(item),
             fallback=_format_community_reaction(item),
             bot="qianyu",
+            tools=[types.Tool(google_search=types.GoogleSearch())],
         )
         channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
         original = await channel.fetch_message(message_id)

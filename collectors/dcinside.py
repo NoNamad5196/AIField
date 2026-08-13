@@ -120,7 +120,7 @@ def _clean_comment_text(memo: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-async def fetch_comments(post_url: str, limit: int = 8) -> str:
+async def fetch_comments(post_url: str, limit: int = 20) -> str:
     """
     게시물 URL에서 실제 댓글을 가져와 '닉네임: 내용' 형식 텍스트로 반환한다.
     DC인사이드 비공개 댓글 API(/board/comment/)를 사용 — 페이지에서 e_s_n_o 토큰을

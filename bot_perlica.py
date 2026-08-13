@@ -126,12 +126,15 @@ class PerlicaBot(discord.Client):
         return message.id
 
     async def post_verification(self, message_id: int, item: NewsItem):
-        """진천우 루머에 답글로 검증 결과 달기."""
+        """진천우 루머에 답글로 검증 결과 달기. 필요하면 모델이 직접 구글 검색해서 확인한다."""
+        from google.genai import types
+
         content = await generate(
             PERLICA_SYSTEM_PROMPT,
             verification_user_prompt(item),
             fallback=_format_verification(item),
             bot="perlica",
+            tools=[types.Tool(google_search=types.GoogleSearch())],
         )
         channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
         original = await channel.fetch_message(message_id)
