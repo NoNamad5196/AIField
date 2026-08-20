@@ -125,6 +125,19 @@ def _clean_comment_text(memo: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+_LOW_VALUE_CHARS = set("ㅋㄲㄱㄷㅎㅠㅜㅗㅁㅅㄴㅇ~!?.,ㆍ ")
+
+
+def _is_low_value_comment(text: str) -> bool:
+    """'퍄퍄퍄', 'ㅋㅋㅋㅋ' 처럼 웃음/감탄사만 반복하는 정보 없는 댓글 판별."""
+    if len(text) < 2:
+        return True
+    collapsed = re.sub(r"(.)\1+", r"\1", text)  # 연속 반복 문자를 1개로 축약
+    if len(collapsed) <= 2:
+        return True
+    return set(text) <= _LOW_VALUE_CHARS
+
+
 async def fetch_comments(post_url: str, limit: int = 20) -> str:
     """
     게시물 URL에서 실제 댓글을 가져와 '닉네임: 내용' 형식 텍스트로 반환한다.
@@ -185,6 +198,8 @@ async def fetch_comments(post_url: str, limit: int = 20) -> str:
             continue
         memo = _clean_comment_text(c.get("memo") or "")
         if not memo or "차단 관련 문의는" in memo:
+            continue
+        if _is_low_value_comment(memo):
             continue
         prefix = "  ↳ " if c.get("depth") else "- "
         lines.append(f"{prefix}{name}: {memo}")

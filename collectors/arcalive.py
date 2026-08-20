@@ -39,6 +39,18 @@ _FETCH_SEMAPHORE = asyncio.Semaphore(3)
 
 _URL_RE = re.compile(r"https?://\S+")
 
+_LOW_VALUE_CHARS = set("ㅋㄲㄱㄷㅎㅠㅜㅗㅁㅅㄴㅇ~!?.,ㆍ ")
+
+
+def _is_low_value_comment(text: str) -> bool:
+    """'퍄퍄퍄', 'ㅋㅋㅋㅋ' 처럼 웃음/감탄사만 반복하는 정보 없는 댓글 판별."""
+    if len(text) < 2:
+        return True
+    collapsed = re.sub(r"(.)\1+", r"\1", text)  # 연속 반복 문자를 1개로 축약
+    if len(collapsed) <= 2:
+        return True
+    return set(text) <= _LOW_VALUE_CHARS
+
 
 def _blocking_get(url: str, timeout: int = 10) -> str:
     """동기 urllib GET. 실패하면 빈 문자열 반환."""
@@ -107,7 +119,7 @@ async def fetch_comments(post_url: str, limit: int = 20) -> str:
             continue
         text = _html.unescape(text_tag.get_text(separator=" ", strip=True))
         text = re.sub(r"\s+", " ", text).strip()
-        if not text:
+        if not text or _is_low_value_comment(text):
             continue
 
         lines.append(f"- {name}: {text}")
