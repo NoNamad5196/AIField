@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 
 from collectors import fetch_all
 from collectors.dcinside import fetch_comments as fetch_dc_comments
+from collectors.arcalive import fetch_comments as fetch_arca_comments
 from scorer import NewsItem
 from bot_qianyu import QianyuBot
 from bot_perlica import PerlicaBot
@@ -157,11 +158,17 @@ class AIFieldScheduler:
         await asyncio.sleep(delay_sec)
         print(f"[scheduler] 펠리카 검증 시작 — {item.title[:40]}")
 
-        is_dcinside = "dcinside" in item.source.lower() or "특이점" in item.source
-        if is_dcinside and item.url:
+        source_lower = item.source.lower()
+        comment_fetcher = None
+        if "dcinside" in source_lower or "특이점" in item.source:
+            comment_fetcher = fetch_dc_comments
+        elif "arca" in source_lower:
+            comment_fetcher = fetch_arca_comments
+
+        if comment_fetcher and item.url:
             try:
                 item.raw_comments = await asyncio.wait_for(
-                    fetch_dc_comments(item.url), timeout=15.0
+                    comment_fetcher(item.url), timeout=15.0
                 )
             except asyncio.TimeoutError:
                 print("[scheduler] 댓글 수집 타임아웃")

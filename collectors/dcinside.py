@@ -1,6 +1,7 @@
 """
-DC Inside 싱귤래리티 마이너 갤러리 수집기.
-https://gall.dcinside.com/mgallery/board/lists/?id=thesingularity
+DC Inside 마이너 갤러리 수집기 (복수 갤러리 지원).
+  - thesingularity (싱귤래리티) — https://gall.dcinside.com/mgallery/board/lists/?id=thesingularity
+  - ai_utilize (AI 활용)        — https://gall.dcinside.com/mgallery/board/lists/?id=ai_utilize
 
 수집 기준:
   - 말머리 정보/활용/자료/후기/유출/외신 → 추천 무관 수집
@@ -14,8 +15,11 @@ import aiohttp
 from bs4 import BeautifulSoup
 from scorer import NewsItem
 
-_GALL_ID = "thesingularity"
-_GALL_URL = "https://gall.dcinside.com/mgallery/board/lists/?id=thesingularity"
+_GALLERIES = [
+    {"id": "thesingularity", "source_name": "DCInside 특이점이 온다 갤"},
+    {"id": "ai_utilize", "source_name": "DCInside AI 활용 갤"},
+]
+_GALL_URL = "https://gall.dcinside.com/mgallery/board/lists/?id={gall_id}"
 _COMMENT_URL = "https://gall.dcinside.com/board/comment/"
 _POST_BASE = "https://gall.dcinside.com"
 _HEADERS = {
@@ -42,6 +46,7 @@ _YT_SRC_RE  = re.compile(r"(?:https?:)?//(?:www\.)?youtube(?:-nocookie)?\.com/em
 
 _ESNO_RE    = re.compile(r"""id=["']e_s_n_o["'][^>]*value=["']([^"']+)["']""")
 _POST_NO_RE = re.compile(r"[?&]no=(\d+)")
+_GALL_ID_RE = re.compile(r"[?&]id=(\w+)")
 _TAG_RE     = re.compile(r"<[^>]+>")
 # "댓글돌이": 갤러리 사이트 기능이 자동으로 남기는 무관한 뉴스 헤드라인 티커 — 실제 반응 아님
 _BOT_COMMENTERS = {"댓글돌이"}
@@ -128,9 +133,11 @@ async def fetch_comments(post_url: str, limit: int = 20) -> str:
     실패하거나 댓글이 없으면 빈 문자열 반환.
     """
     m = _POST_NO_RE.search(post_url)
-    if not m:
+    gall_m = _GALL_ID_RE.search(post_url)
+    if not m or not gall_m:
         return ""
     post_no = m.group(1)
+    gall_id = gall_m.group(1)
 
     try:
         timeout = aiohttp.ClientTimeout(total=10)
@@ -146,8 +153,8 @@ async def fetch_comments(post_url: str, limit: int = 20) -> str:
             e_s_n_o = esno_m.group(1)
 
             data = {
-                "id": _GALL_ID, "no": post_no,
-                "cmt_id": _GALL_ID, "cmt_no": post_no,
+                "id": gall_id, "no": post_no,
+                "cmt_id": gall_id, "cmt_no": post_no,
                 "focus_cno": "", "focus_pno": "-1",
                 "e_s_n_o": e_s_n_o,
                 "comment_page": "1", "sort": "", "prevCnt": "0",
@@ -187,78 +194,105 @@ async def fetch_comments(post_url: str, limit: int = 20) -> str:
     return "\n".join(lines)
 
 
+async def _fetch_gallery(
+    session: aiohttp.ClientSession, gall_id: str, source_name: str, limit: int
+) -> list[NewsItem]:
+    """단일 갤러리의 게시물 목록을 수집한다."""
+    try:
+        async with session.get(
+            _GALL_URL.format(gall_id=gall_id), timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
+            if resp.status != 200:
+                print(f"[dcinside] {gall_id} HTTP {resp.status}")
+                return []
+            html = await resp.text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        print(f"[dcinside] {gall_id} 요청 실패: {e}")
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+    rows = soup.select("tr.ub-content")
+
+    items = []
+    for row in rows[:limit]:
+        try:
+            row_classes = row.get("class", [])
+            if "notice-cont" in row_classes:
+                continue
+            num_td = row.select_one("td.gall_num")
+            if num_td and num_td.get_text(strip=True) in _SKIP_TYPES:
+                continue
+
+            title_td = row.select_one("td.gall_tit")
+            if not title_td:
+                continue
+
+            a_tag = next(
+                (a for a in title_td.select("a") if "reply_num" not in a.get("class", [])),
+                None,
+            )
+            if not a_tag:
+                continue
+
+            title = a_tag.get_text(strip=True)
+            if not title:
+                continue
+
+            # 말머리
+            subject_td = row.select_one("td.gall_subject")
+            subject = subject_td.get_text(strip=True) if subject_td else ""
+
+            # 추천수
+            recommend = 0
+            rec_td = row.select_one("td.gall_recommend")
+            if rec_td:
+                try:
+                    recommend = int(rec_td.get_text(strip=True))
+                except ValueError:
+                    pass
+
+            # 수집 기준: 정보성 말머리 OR 念글(추천 10↑)
+            is_quality_subject = any(s in subject for s in _QUALITY_SUBJECTS)
+            is_hot = recommend >= _HOT_RECOMMEND
+
+            if not is_quality_subject and not is_hot:
+                continue
+
+            href = a_tag.get("href", "")
+            url = _POST_BASE + href if href.startswith("/") else href
+
+            items.append(NewsItem(
+                title=title,
+                source=source_name,
+                url=url,
+                is_official=False,
+                is_rumor=True,
+                reliability=3,
+                urgency=4 if is_hot else 3,
+            ))
+        except Exception:
+            continue
+
+    return items
+
+
 async def fetch(limit: int = 30) -> list[NewsItem]:
     try:
-        timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(headers=_HEADERS) as session:
-            async with session.get(_GALL_URL, timeout=timeout) as resp:
-                if resp.status != 200:
-                    print(f"[dcinside] HTTP {resp.status}")
-                    return []
-                html = await resp.text(encoding="utf-8", errors="replace")
+            gallery_results = await asyncio.gather(
+                *[
+                    _fetch_gallery(session, g["id"], g["source_name"], limit)
+                    for g in _GALLERIES
+                ],
+                return_exceptions=True,
+            )
 
-            soup = BeautifulSoup(html, "html.parser")
-            rows = soup.select("tr.ub-content")
-
-            items = []
-            for row in rows[:limit]:
-                try:
-                    row_classes = row.get("class", [])
-                    if "notice-cont" in row_classes:
-                        continue
-                    num_td = row.select_one("td.gall_num")
-                    if num_td and num_td.get_text(strip=True) in _SKIP_TYPES:
-                        continue
-
-                    title_td = row.select_one("td.gall_tit")
-                    if not title_td:
-                        continue
-
-                    a_tag = next(
-                        (a for a in title_td.select("a") if "reply_num" not in a.get("class", [])),
-                        None,
-                    )
-                    if not a_tag:
-                        continue
-
-                    title = a_tag.get_text(strip=True)
-                    if not title:
-                        continue
-
-                    # 말머리
-                    subject_td = row.select_one("td.gall_subject")
-                    subject = subject_td.get_text(strip=True) if subject_td else ""
-
-                    # 추천수
-                    recommend = 0
-                    rec_td = row.select_one("td.gall_recommend")
-                    if rec_td:
-                        try:
-                            recommend = int(rec_td.get_text(strip=True))
-                        except ValueError:
-                            pass
-
-                    # 수집 기준: 정보성 말머리 OR 念글(추천 10↑)
-                    is_quality_subject = any(s in subject for s in _QUALITY_SUBJECTS)
-                    is_hot = recommend >= _HOT_RECOMMEND
-
-                    if not is_quality_subject and not is_hot:
-                        continue
-
-                    href = a_tag.get("href", "")
-                    url = _POST_BASE + href if href.startswith("/") else href
-
-                    items.append(NewsItem(
-                        title=title,
-                        source="DCInside 특이점이 온다 갤",
-                        url=url,
-                        is_official=False,
-                        is_rumor=True,
-                        reliability=3,
-                        urgency=4 if is_hot else 3,
-                    ))
-                except Exception:
+            items: list[NewsItem] = []
+            for gall, result in zip(_GALLERIES, gallery_results):
+                if isinstance(result, Exception):
+                    print(f"[dcinside] {gall['id']} 수집 실패: {result}")
                     continue
+                items.extend(result)
 
             # 본문 병렬 fetch
             if items:

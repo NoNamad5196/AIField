@@ -90,7 +90,8 @@ AIField/
 │   ├── rss.py              # 공식 RSS 수집기
 │   ├── hacker_news.py      # Hacker News 수집기
 │   ├── huggingface.py      # HuggingFace 모델 수집기
-│   └── dcinside.py         # DCInside 갤러리 스크래퍼
+│   ├── dcinside.py         # DCInside 갤러리 스크래퍼 (특이점이 온다, AI 활용)
+│   └── arcalive.py         # 아카라이브 AI 채팅 채널 스크래퍼
 └── db/
     └── news_store.py       # SQLite 저장·중복 필터
 ```

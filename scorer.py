@@ -59,7 +59,7 @@ _RELIABLE_SOURCES = {
 
 _COMMUNITY_SOURCES = {
     "reddit", "hacker news", "hn", "twitter", "x.com",
-    "dcinside", "clien", "fm korea", "ruliweb",
+    "dcinside", "clien", "fm korea", "ruliweb", "arca live", "arca.live",
 }
 
 

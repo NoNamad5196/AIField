@@ -59,9 +59,8 @@ class QianyuBot(discord.Client):
             fallback=_format_rumor(item),
             bot="qianyu",
         )
-        # DCInside 글: 링크를 Gemini에 맡기지 않고 코드에서 직접 붙임
-        is_dcinside = "특이점" in item.source or "dcinside" in item.source.lower()
-        if is_dcinside and item.url and item.url not in content:
+        # 링크를 Gemini에 맡기지 않고 코드에서 직접 붙임 (누락 시 보강)
+        if item.url and item.url not in content:
             content = content.rstrip() + f"\n🔗 {item.url}"
 
         channel = await self._get_channel(config.AIFIELD_LIVE_CHANNEL_ID)
