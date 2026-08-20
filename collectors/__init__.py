@@ -9,7 +9,7 @@ AIField 수집기 패키지.
 import asyncio
 from scorer import NewsItem, score
 
-from collectors import huggingface, dcinside, rss, anthropic, arcalive
+from collectors import huggingface, dcinside, rss, anthropic, arcalive  # noqa: F401 (arcalive는 아래 참고)
 
 
 async def fetch_all() -> list[NewsItem]:
@@ -19,12 +19,13 @@ async def fetch_all() -> list[NewsItem]:
         huggingface.fetch(),
         dcinside.fetch(),
         anthropic.fetch(),
-        arcalive.fetch(),
+        # arcalive.fetch(),  # 운영 서버(오라클 클라우드) IP가 Cloudflare에 차단당해 비활성화.
+        #                    # 프록시 등 우회 방법 마련되면 이 줄만 다시 켜면 됨.
         return_exceptions=True,
     )
 
     items: list[NewsItem] = []
-    names = ["RSS(공식)", "HuggingFace", "DCInside", "Anthropic", "ArcaLive"]
+    names = ["RSS(공식)", "HuggingFace", "DCInside", "Anthropic"]
     for name, result in zip(names, results):
         if isinstance(result, Exception):
             print(f"[collectors] {name} 수집 실패: {result}")
