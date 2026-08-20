@@ -16,6 +16,24 @@ _REQ_INTERVAL = 7.0  # 60 / 10 RPM = 6초, 여유분 포함 (2.5-flash free tier
 _clients:    dict[str, object] = {}
 _semaphores: dict[str, asyncio.Semaphore] = {}
 
+# fallback 사용 시 왜 AI 생성 대신 템플릿이 나왔는지 관리자가 바로 알 수 있게 덧붙이는 안내문.
+# 봇 말투(진천우: 밝은 반말 / 펠리카: 차분한 반말)를 유지한 채로 붙인다.
+_FALLBACK_NOTE = {
+    "qianyu":  "_(참고: {reason} 때문에 이번엔 AI 대신 간단 버전으로 대체했어!)_",
+    "perlica": "_(참고: {reason} 때문에 이번엔 AI 생성 대신 간이 메시지로 대체했어.)_",
+}
+_REASON_DAILY_QUOTA = "일일 AI 쿼터 초과"
+_REASON_RATE_LIMIT  = "AI 요청량 제한(RPM) 초과"
+_REASON_EMPTY       = "AI 응답 생성 실패"
+_REASON_ERROR       = "일시적 오류"
+
+
+def _with_fallback_note(fallback: str, bot: str, reason: str) -> str:
+    if not fallback:
+        return fallback
+    note = _FALLBACK_NOTE.get(bot, _FALLBACK_NOTE["perlica"]).format(reason=reason)
+    return fallback.rstrip() + "\n\n" + note
+
 
 def _init_client(name: str, api_key: str | None) -> None:
     if not api_key:
@@ -51,7 +69,9 @@ async def generate(
     client    = _clients.get(bot)
     semaphore = _semaphores.get(bot)
     if client is None:
-        return fallback
+        # 진천우/펠리카 둘 다 키가 설정돼 있는 게 정상 운영 상태라, 클라이언트가 없는 경우도
+        # 실질적으론 쿼터 문제(예: 초기화 실패)로 보는 게 더 현실적인 안내다.
+        return _with_fallback_note(fallback, bot, _REASON_DAILY_QUOTA)
 
     from google.genai import types
 
@@ -71,7 +91,9 @@ async def generate(
                 )
                 await asyncio.sleep(_REQ_INTERVAL)
                 text = response.text
-                return text.strip() if text else fallback
+                if text:
+                    return text.strip()
+                return _with_fallback_note(fallback, bot, _REASON_EMPTY)
 
             except Exception as e:
                 err_str = str(e)
@@ -87,9 +109,14 @@ async def generate(
 
                 if is_daily_quota:
                     print(f"[llm:{bot}] 일일 쿼터 초과 — 재시도 없이 fallback 사용")
+                    reason = _REASON_DAILY_QUOTA
+                elif is_rate_limit:
+                    print(f"[llm:{bot}] 429 rate limit 재시도 소진 — fallback 사용")
+                    reason = _REASON_RATE_LIMIT
                 else:
                     print(f"[llm:{bot}] 오류 (attempt {attempt + 1}): {e}")
+                    reason = _REASON_ERROR
                 await asyncio.sleep(_REQ_INTERVAL)
-                return fallback
+                return _with_fallback_note(fallback, bot, reason)
 
-    return fallback
+    return _with_fallback_note(fallback, bot, _REASON_ERROR)
